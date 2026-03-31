@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Documentation — SIG Arbres · Jean-Marie Prévost</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --forest:   #1a2e1a;
+      --moss:     #2e4a2e;
+      --fern:     #3d6b3d;
+      --leaf:     #5a9a4a;
+      --sage:     #a8c897;
+      --cream:    #f5f0e8;
+      --parchment:#e8dfc8;
+      --bark:     #7a5c3a;
+      --amber:    #d4891a;
+      --rust:     #c05a2a;
+      --bg:       #f8f6f1;
+      --text:     #1e1e1e;
+      --muted:    #6b6b6b;
+      --border:   #d8d0c0;
+      --code-bg:  #1a2e1a;
+      --code-text:#a8c897;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 1rem;
+    }
+
+    /* ── COVER ── */
+    .cover {
+      background: var(--forest);
+      color: var(--cream);
+      padding: 64px 40px 48px;
+      text-align: center;
+      border-bottom: 4px solid var(--leaf);
+    }
+    .cover-icon { font-size: 3.5rem; margin-bottom: 16px; }
+    .cover h1 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 2.4rem;
+      color: var(--sage);
+      margin-bottom: 8px;
+    }
+    .cover-sub {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--fern);
+      margin-bottom: 24px;
+    }
+    .cover-meta {
+      display: inline-flex;
+      gap: 24px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--moss);
+      border-radius: 12px;
+      padding: 14px 28px;
+      font-size: 0.85rem;
+      color: var(--sage);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .cover-meta span { display: flex; align-items: center; gap: 6px; }
+
+    /* ── SOMMAIRE ── */
+    .toc {
+      max-width: 860px;
+      margin: 48px auto 0;
+      padding: 0 24px;
+    }
+    .toc-box {
+      background: var(--forest);
+      border-radius: 14px;
+      padding: 28px 32px;
+      color: var(--cream);
+    }
+    .toc-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.1rem;
+      color: var(--sage);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .toc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 24px;
+    }
+    .toc-grid a {
+      color: var(--sage);
+      text-decoration: none;
+      font-size: 0.88rem;
+      padding: 4px 0;
+      border-bottom: 1px solid transparent;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toc-grid a:hover { color: var(--leaf); border-bottom-color: var(--fern); }
+    .toc-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      color: var(--fern);
+      min-width: 22px;
+    }
+    @media (max-width: 600px) { .toc-grid { grid-template-columns: 1fr; } }
+
+    /* ── LAYOUT CONTENU ── */
+    .content {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* ── SECTION ── */
+    .section {
+      margin-top: 56px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 24px;
+      padding-bottom: 14px;
+      border-bottom: 2px solid var(--leaf);
+    }
+    .section-num {
+      background: var(--forest);
+      color: var(--sage);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .section-header h2 {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.5rem;
+      color: var(--forest);
+    }
+    .section-icon { font-size: 1.4rem; }
+
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--forest);
+      margin-top: 28px;
+      margin-bottom: 10px;
+      padding-left: 12px;
+      border-left: 3px solid var(--leaf);
+    }
+
+    p { margin-bottom: 14px; color: var(--text); }
+    p + p { margin-top: 4px; }
+
+    /* ── CALLOUT ── */
+    .callout {
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin: 18px 0;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .callout-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
+    .callout-body { flex: 1; }
+    .callout-body strong { display: block; margin-bottom: 4px; font-size: 0.9rem; }
+    .callout-body p { font-size: 0.88rem; margin: 0; }
+    .callout.info { background: #e8f0e8; border-left: 4px solid var(--leaf); }
+    .callout.warning { background: #fdf3e0; border-left: 4px solid var(--amber); }
+    .callout.tip { background: #f0ece3; border-left: 4px solid var(--bark); }
+    .callout.success { background: #e4f0e4; border-left: 4px solid var(--fern); }
+
+    /* ── CODE ── */
+    code {
+      font-family: 'DM Mono', monospace;
+      background: #e8e4dc;
+      color: var(--forest);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+    }
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      border-radius: 10px;
+      padding: 20px 22px;
+      margin: 16px 0;
+      overflow-x: auto;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      border: 1px solid var(--moss);
+    }
+    pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+    .comment { color: #5a9a4a; }
+    .key { color: #d4891a; }
+    .val { color: #a8c897; }
+
+    /* ── TABLES ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.88rem;
+    }
+    th {
+      background: var(--forest);
+      color: var(--sage);
+      text-align: left;
+      padding: 10px 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f0ece4; }
+    tr:hover td { background: #e8e2d8; }
+
+    /* ── FUNCTION CARDS ── */
+    .fn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 16px 0;
+    }
+    @media (max-width: 640px) { .fn-grid { grid-template-columns: 1fr; } }
+
+    .fn-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      border-top: 3px solid var(--leaf);
+    }
+    .fn-name {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--forest);
+      font-weight: 500;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .fn-tag {
+      font-size: 0.6rem;
+      background: var(--forest);
+      color: var(--sage);
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.06em;
+    }
+    .fn-desc { font-size: 0.82rem; color: var(--muted); }
+
+    /* ── TECHNO BADGES ── */
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 16px 0;
+    }
+    .badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--forest);
+      color: var(--sage);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      font-family: 'DM Mono', monospace;
+    }
+    .badge-icon { font-size: 1.1rem; }
+
+    /* ── STEPS ── */
+    .steps { margin: 16px 0; }
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 18px;
+      align-items: flex-start;
+    }
+    .step-num {
+      background: var(--leaf);
+      color: var(--forest);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.82rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-body { flex: 1; }
+    .step-body strong { display: block; margin-bottom: 4px; }
+    .step-body p { font-size: 0.88rem; color: var(--muted); margin: 0; }
+
+    /* ── PERSO BLOCK ── */
+    .perso-block {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin: 16px 0;
+    }
+    .perso-block h4 {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--forest);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .perso-block p { font-size: 0.87rem; color: var(--muted); margin-bottom: 8px; }
+    .perso-block p:last-child { margin-bottom: 0; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--forest);
+      color: var(--fern);
+      text-align: center;
+      padding: 28px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      margin-top: 0;
+    }
+    footer a { color: var(--sage); text-decoration: none; }
+
+    /* ── DIVIDER ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+    /* ── SCREEN MOCKUP ── */
+    .app-screen {
+      background: var(--forest);
+      border-radius: 14px;
+      padding: 20px;
+      margin: 20px 0;
+      border: 1px solid var(--moss);
+      color: var(--sage);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+    }
+    .app-screen-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--moss);
+      margin-bottom: 14px;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot.r { background: var(--rust); }
+    .dot.a { background: var(--amber); }
+    .dot.g { background: var(--leaf); }
+    .app-screen-title { font-size: 0.7rem; color: var(--fern); letter-spacing: 0.1em; }
+  </style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-icon">🌳</div>
+  <h1>SIG Arbres — Documentation technique</h1>
+  <div class="cover-sub">Bureau d'Études · Moissy-Cramayel · M. Jean-Marie Prévost</div>
+  <div class="cover-meta">
+    <span>📅 Mars 2026</span>
+    <span>📄 Un seul fichier HTML</span>
+    <span>📡 Sans serveur requis</span>
+    <span>📱 Mobile &amp; desktop</span>
+  </div>
+</div>
+
+<!-- SOMMAIRE -->
+<div class="toc">
+  <div class="toc-box">
+    <div class="toc-title">📋 Sommaire</div>
+    <div class="toc-grid">
+      <a href="#s1"><span class="toc-num">01</span> Ce que fait l'application</a>
+      <a href="#s2"><span class="toc-num">02</span> La demande de départ</a>
+      <a href="#s3"><span class="toc-num">03</span> Les langages utilisés</a>
+      <a href="#s4"><span class="toc-num">04</span> Les fonctions développées</a>
+      <a href="#s5"><span class="toc-num">05</span> Personnaliser pour Moissy-Cramayel</a>
+      <a href="#s6"><span class="toc-num">06</span> Déploiement sur un serveur</a>
+      <a href="#s7"><span class="toc-num">07</span> Personnaliser les couleurs &amp; l'apparence</a>
+      <a href="#s8"><span class="toc-num">08</span> Pistes d'évolution</a>
+    </div>
+  </div>
+</div>
+
+<!-- CONTENU -->
+<div class="content">
+
+  <!-- ══════════════════════════════════ SECTION 1 ══════════════════════════════════ -->
+  <div class="section" id="s1">
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <span class="section-icon">🌍</span>
+      <h2>Ce que fait l'application</h2>
+    </div>
+
+    <p>Jean-Marie, l'application que j'ai construite pour vous est un <strong>outil d'inventaire d'arbres sur le terrain</strong>, utilisable directement depuis un smartphone, une tablette ou un ordinateur. Son nom technique est <em>SIG Arbres</em> — SIG signifie <em>Système d'Information Géographique</em>.</p>
+
+    <p>En termes simples : vous êtes sur le terrain, face à un arbre, vous ouvrez l'application dans le navigateur de votre téléphone, vous touchez la carte à l'endroit de l'arbre (ou vous activez le GPS), vous remplissez un formulaire rapide, et le point est enregistré immédiatement sur la carte et dans la mémoire de votre appareil. Plus besoin de carnet papier ni de logiciel lourd.</p>
+
+    <div class="app-screen">
+      <div class="app-screen-bar">
+        <span class="dot r"></span><span class="dot a"></span><span class="dot g"></span>
+        <span class="app-screen-title">🌳 SIG Arbres — Inventaire de terrain</span>
+      </div>
+      <div style="display:flex;gap:16px;font-size:0.75rem;line-height:1.9;color:#a8c897">
+        <div style="flex:1">
+          <div>📍 Carte interactive (Leaflet)</div>
+          <div>🛰️ Vue satellite Google disponible</div>
+          <div>🗺️ Vue OpenStreetMap disponible</div>
+          <div>➕ Mode ajout point (clic ou GPS)</div>
+          <div>🌳 Marqueurs arbres personnalisés</div>
+        </div>
+        <div style="flex:1">
+          <div>📋 Formulaire espèce / état / hauteur</div>
+          <div>📂 Liste de tous les arbres saisis</div>
+          <div>✏️ Modification / suppression</div>
+          <div>📤 Export CSV (Excel)</div>
+          <div>📷 Export image A4 paysage</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-icon">💡</span>
+      <div class="callout-body">
+        <strong>Aucune installation requise</strong>
+        <p>L'application tient dans un seul fichier <code>index.html</code>. Il suffit de l'ouvrir dans un navigateur web (Chrome, Safari, Firefox…) — sur téléphone, tablette ou ordinateur. Aucun logiciel à installer.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ SECTION 2 ══════════════════════════════════ -->
+  <div class="section" id="s2">
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <span class="section-icon">🎯</span>
+      <h2>La demande de départ et comment j'y ai répondu</h2>
+    </div>
+
+    <p>La demande initiale était de créer un outil de terrain léger, utilisable par le bureau d'études, pour géolocaliser et qualifier des arbres sans dépendre d'un logiciel SIG professionnel lourd (type QGIS ou ArcGIS). Voici comment j'ai traduit chaque besoin en fonctionnalité concrète :</p>
+
+    <table>
+      <thead>
+        <tr><th>Besoin exprimé</th><th>Ce que j'ai développé</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Travailler sur le terrain avec un smartphone</td><td>Interface responsive, adaptée portrait et paysage, avec des boutons suffisamment grands pour les doigts</td></tr>
+        <tr><td>Placer un arbre sur une carte</td><td>Clic sur la carte en « mode ajout » ou GPS automatique, marqueur rouge en attente de validation</td></tr>
+        <tr><td>Saisir les caractéristiques de l'arbre</td><td>Formulaire structuré : type, espèce latine, date de plantation, hauteur, état sanitaire, observations libres</td></tr>
+        <tr><td>Base d'espèces d'arbres française</td><td>Menu déroulant avec +80 espèces classées par famille (Chêne, Tilleul, Pin, Cèdre…) et possibilité de saisir une espèce non listée</td></tr>
+        <tr><td>Récupérer les données</td><td>Export CSV (compatible Excel), partage par e-mail ou WhatsApp, export image carte A4 paysage (JPEG)</td></tr>
+        <tr><td>Retravailler les données entre deux sessions</td><td>Sauvegarde automatique dans le navigateur (localStorage) — les arbres sont toujours là à la réouverture</td></tr>
+        <tr><td>Utiliser en déplacement sans connexion</td><td>Application 100 % autonome — seules les tuiles de carte nécessitent du réseau ; les données restent locales</td></tr>
+        <tr><td>Identité visuelle bureau d'études</td><td>Palette forêt/écorce, typographie soignée, copyright « Bureau d'Études — M. Prévost » en pied de page</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <span class="callout-icon">🏢</span>
+      <div class="callout-body">
+        <strong>Contexte : Moissy-Cramayel, Seine-et-Marne</strong>
+        <p>La carte est centrée par défaut sur les coordonnées <code>48.6167° N, 2.5833° E</code> — c'est exactement le centre de Moissy-Cramayel. Dès que vous ouvrez l'application, vous tombez sur votre territoire.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ SECTION 3 ══════════════════════════════════ -->
+  <div class="section" id="s3">
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <span class="section-icon">💻</span>
+      <h2>Les langages de code utilisés</h2>
+    </div>
+
+    <p>L'application repose sur trois langages qui constituent la base de toute page web. Je les ai tous mis dans un seul fichier, ce qui rend le déploiement très simple.</p>
+
+    <div class="badges">
+      <div class="badge"><span class="badge-icon">🏗️</span> HTML5 — Structure de la page</div>
+      <div class="badge"><span class="badge-icon">🎨</span> CSS3 — Apparence visuelle</div>
+      <div class="badge"><span class="badge-icon">⚙️</span> JavaScript — Fonctionnement interactif</div>
+    </div>
+
+    <h3>HTML5 — la structure</h3>
+    <p>C'est le squelette de la page. J'ai créé avec HTML tous les éléments visibles : l'en-tête avec le logo et les statistiques, la carte, le panneau latéral avec ses onglets, le formulaire de saisie, la liste des arbres, les modales (fenêtres flottantes) pour l'édition et l'export. En termes simples, HTML décrit <em>quoi</em> afficher, mais pas <em>comment</em> ça ressemble.</p>
+
+    <h3>CSS3 — l'apparence</h3>
+    <p>C'est la partie qui donne son allure à l'application : les couleurs forêt, les polices, les tailles, les animations, l'adaptation mobile. J'ai défini une palette de couleurs nommées (comme <code>--forest</code>, <code>--leaf</code>, <code>--amber</code>…) que je réutilise partout — si vous changez une couleur, elle se met à jour dans toute l'application automatiquement. J'ai aussi écrit des règles spéciales pour que l'affichage s'adapte automatiquement à la taille de l'écran (ce qu'on appelle le <em>responsive design</em>).</p>
+
+    <h3>JavaScript — le comportement</h3>
+    <p>C'est le cerveau de l'application. Tout ce qui « fait quelque chose » est écrit en JavaScript : le clic sur la carte, la géolocalisation GPS, la sauvegarde, l'export CSV, la génération de l'image, etc. Je n'ai utilisé aucun framework externe compliqué — du JavaScript pur, lisible et modifiable directement.</p>
+
+    <h3>Bibliothèques externes</h3>
+    <p>J'ai intégré deux outils tiers pour éviter de réinventer la roue :</p>
+    <table>
+      <thead>
+        <tr><th>Bibliothèque</th><th>Version</th><th>Rôle</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Leaflet.js</strong></td>
+          <td>1.9.4</td>
+          <td>Bibliothèque de carte interactive open source. Elle affiche les tuiles OpenStreetMap et Google Satellite, gère le zoom, les marqueurs, les popups. C'est la référence mondiale pour les cartes web légères.</td>
+        </tr>
+        <tr>
+          <td><strong>html2canvas</strong></td>
+          <td>1.4.1</td>
+          <td>Permet de prendre une « photo » de la carte telle qu'elle apparaît à l'écran et de la transformer en fichier JPEG téléchargeable. C'est ce qui alimente la fonction d'export image A4.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout info">
+      <span class="callout-icon">🌐</span>
+      <div class="callout-body">
+        <strong>Ces bibliothèques sont chargées depuis un CDN</strong>
+        <p>Elles ne sont pas stockées dans le fichier lui-même mais téléchargées automatiquement depuis internet à l'ouverture de l'application. Si vous travaillez hors ligne, il faudra les intégrer localement (voir section Déploiement).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ SECTION 4 ══════════════════════════════════ -->
+  <div class="section" id="s4">
+    <div class="section-header">
+      <span class="section-num">04</span>
+      <span class="section-icon">⚙️</span>
+      <h2>Les fonctions développées — expliquées simplement</h2>
+    </div>
+
+    <p>Voici l'ensemble des fonctions JavaScript que j'ai écrites, regroupées par thème, avec une explication accessible pour quelqu'un qui ne code pas :</p>
+
+    <h3>🗺️ Initialisation et gestion de la carte</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name">Initialisation Leaflet <span class="fn-tag">carte</span></div>
+        <div class="fn-desc">Crée la carte centrée sur Moissy-Cramayel au zoom 14. Active les contrôles de zoom. Deux fonds de carte disponibles : OpenStreetMap (plan) et Google Satellite.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name">Sélecteur de fond de carte <span class="fn-tag">carte</span></div>
+        <div class="fn-desc">Les boutons OSM / Satellite en bas à gauche de la carte. Quand vous cliquez, l'ancien fond est retiré, le nouveau est chargé, et une notification apparaît brièvement en bas d'écran.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>makeIcon(color)</code> <span class="fn-tag">visuel</span></div>
+        <div class="fn-desc">Crée l'icône d'arbre verte visible sur la carte. Je l'ai dessinée en SVG (dessin vectoriel) : un feuillage vert en ellipses superposées et un tronc marron. Elle s'adapte à n'importe quelle couleur si on la change.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>makeUserIcon()</code> <span class="fn-tag">visuel</span></div>
+        <div class="fn-desc">Crée le point bleu/vert qui représente votre position GPS en temps réel sur la carte. Un cercle vert avec un halo pulsant pour être facilement repérable.</div>
+      </div>
+    </div>
+
+    <h3>📍 Placement et géolocalisation</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name">Mode ajout (clic carte) <span class="fn-tag">saisie</span></div>
+        <div class="fn-desc">Quand vous activez le bouton « ➕ Ajouter point », le curseur de la carte passe en croix. Le prochain clic pose un marqueur rouge temporaire (en attente de validation) et affiche les coordonnées dans le formulaire.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>locateUser()</code> <span class="fn-tag">GPS</span></div>
+        <div class="fn-desc">Utilise le GPS du téléphone (ou la géolocalisation du navigateur) pour trouver votre position précise. La carte se centre sur vous, un marqueur vert apparaît, et la précision (ex. ±5 m) est affichée. Fonctionne en temps réel — si vous vous déplacez, le marqueur suit.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>makePendingMarker()</code> <span class="fn-tag">visuel</span></div>
+        <div class="fn-desc">Pose le cercle rouge clignotant sur la carte quand un point a été cliqué mais pas encore enregistré dans le formulaire. C'est un indicateur visuel : « attention, ce point n'est pas encore sauvegardé ».</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>setCoordDisplay()</code> <span class="fn-tag">formulaire</span></div>
+        <div class="fn-desc">Met à jour les deux cases « Latitude » et « Longitude » en haut du formulaire avec les coordonnées du point cliqué ou GPS.</div>
+      </div>
+    </div>
+
+    <h3>📋 Formulaire et saisie</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name"><code>doSave()</code> <span class="fn-tag">cœur</span></div>
+        <div class="fn-desc">Fonction centrale : elle lit toutes les valeurs du formulaire, crée un objet « arbre » avec un identifiant unique (horodatage), l'ajoute à la liste, le sauvegarde, place le marqueur sur la carte et met à jour les statistiques.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name">Enregistrer &amp; suivant <span class="fn-tag">terrain</span></div>
+        <div class="fn-desc">Variante de la sauvegarde prévue pour le terrain : après avoir enregistré un arbre, le formulaire se vide automatiquement, le mode ajout se réactive, et vous êtes prêt à placer le point suivant en un seul geste.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>clearForm()</code> <span class="fn-tag">formulaire</span></div>
+        <div class="fn-desc">Vide tous les champs du formulaire : type, espèce, date, hauteur, état, notes, et remet les coordonnées à zéro. Supprime aussi le marqueur rouge temporaire.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>initDateSelects()</code> <span class="fn-tag">formulaire</span></div>
+        <div class="fn-desc">Gère le sélecteur de date en trois parties (jour / mois / année) et le pré-remplit automatiquement avec la date du jour à l'ouverture.</div>
+      </div>
+    </div>
+
+    <h3>📂 Gestion des espèces (nomenclature botanique)</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name"><code>onVarieteSelect()</code> <span class="fn-tag">espèce</span></div>
+        <div class="fn-desc">Gère le menu déroulant d'espèces. Si vous sélectionnez « ✏ Autre — saisir manuellement », un champ de texte libre apparaît en dessous pour que vous puissiez taper une espèce non listée.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>getVarieteValue()</code> <span class="fn-tag">espèce</span></div>
+        <div class="fn-desc">Récupère la valeur de l'espèce saisie — soit le nom latin depuis le menu, soit le texte libre tapé à la main.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>setVarieteValue()</code> <span class="fn-tag">espèce</span></div>
+        <div class="fn-desc">Utilisée lors de l'édition d'un arbre existant : remet la bonne espèce dans le formulaire. Si l'espèce ne figure pas dans la liste standard, elle active automatiquement le champ de saisie libre.</div>
+      </div>
+    </div>
+
+    <h3>📃 Liste et édition</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name"><code>renderList()</code> <span class="fn-tag">liste</span></div>
+        <div class="fn-desc">Génère la liste de toutes les fiches d'arbres dans le panneau latéral. Chaque carte affiche l'emoji de l'espèce, le nom, les coordonnées, et les boutons ✏️ (modifier) et ✕ (supprimer).</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>selectTree(id)</code> <span class="fn-tag">liste</span></div>
+        <div class="fn-desc">Quand vous cliquez sur un arbre dans la liste, la carte se centre sur lui, son popup s'ouvre, et la carte surligne la fiche correspondante.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>openEditModal()</code> <span class="fn-tag">édition</span></div>
+        <div class="fn-desc">Ouvre la fenêtre flottante d'édition et la pré-remplit avec toutes les données de l'arbre sélectionné : espèce, date, hauteur, état, notes.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>saveEditModal()</code> <span class="fn-tag">édition</span></div>
+        <div class="fn-desc">Sauvegarde les modifications faites dans la fenêtre d'édition, met à jour la carte et la liste, et ferme la fenêtre.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>deleteTree()</code> <span class="fn-tag">données</span></div>
+        <div class="fn-desc">Supprime définitivement un arbre après confirmation. Retire le marqueur de la carte, la fiche de la liste, et met à jour la sauvegarde locale.</div>
+      </div>
+    </div>
+
+    <h3>💾 Sauvegarde et export</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name"><code>saveLocal()</code> <span class="fn-tag">stockage</span></div>
+        <div class="fn-desc">Sauvegarde tous les arbres dans la mémoire permanente du navigateur (localStorage). Les données restent disponibles même après avoir fermé la page, éteint le téléphone, ou redémarré. Elles sont liées au navigateur et à l'appareil utilisé.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>buildCSV()</code> <span class="fn-tag">export</span></div>
+        <div class="fn-desc">Génère un fichier texte structuré (CSV) avec toutes les données des arbres : id, type, espèce, date de plantation, latitude, longitude, hauteur, état sanitaire, observations, date de saisie. Ce fichier s'ouvre directement dans Excel ou LibreOffice Calc.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>buildTextSummary()</code> <span class="fn-tag">export</span></div>
+        <div class="fn-desc">Génère un résumé texte lisible de l'inventaire, utilisé pour l'envoi par e-mail : nombre d'arbres, date, liste avec coordonnées.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name">Partage natif (Web Share API) <span class="fn-tag">mobile</span></div>
+        <div class="fn-desc">Sur mobile, active le menu de partage natif du téléphone pour envoyer le fichier CSV directement par WhatsApp, AirDrop, e-mail, Google Drive, etc.</div>
+      </div>
+    </div>
+
+    <h3>📷 Export image A4</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name"><code>openPrintOverlay()</code> <span class="fn-tag">export</span></div>
+        <div class="fn-desc">Ouvre l'écran d'aperçu de l'export image. Une mini-carte Leaflet se crée automatiquement dans une composition A4 paysage, avec en-tête, légende, statistiques et pied de page.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>generateJpeg(mode)</code> <span class="fn-tag">export</span></div>
+        <div class="fn-desc">Utilise html2canvas pour prendre une capture de la composition A4, puis propose soit de télécharger le JPEG, soit de le partager via le menu natif du téléphone. Le fichier est nommé automatiquement avec la date du jour.</div>
+      </div>
+    </div>
+
+    <h3>📱 Interface mobile</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name"><code>togglePanel()</code> <span class="fn-tag">mobile</span></div>
+        <div class="fn-desc">Masque ou affiche le panneau latéral (formulaire + liste) pour donner plus d'espace à la carte. Sur mobile portrait, le panneau se glisse vers le bas comme un tiroir.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name">Drag handle (tiroir mobile) <span class="fn-tag">mobile</span></div>
+        <div class="fn-desc">Sur mobile portrait, vous pouvez glisser le bord supérieur du panneau avec le doigt pour l'agrandir ou le réduire à la hauteur que vous souhaitez, exactement comme un tiroir physique.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>showToast(msg)</code> <span class="fn-tag">interface</span></div>
+        <div class="fn-desc">Affiche un message d'information discret en bas de l'écran pendant 2,5 secondes (ex. « 🌳 Chêne enregistré ! »). C'est la façon la moins intrusive de confirmer une action sans interrompre le travail.</div>
+      </div>
+      <div class="fn-card">
+        <div class="fn-name"><code>updateStats()</code> <span class="fn-tag">interface</span></div>
+        <div class="fn-desc">Met à jour en temps réel les deux compteurs en haut de l'écran : nombre total d'arbres saisis, et nombre d'espèces différentes.</div>
+      </div>
+    </div>
+
+    <h3>📥 Import CSV</h3>
+    <div class="fn-grid">
+      <div class="fn-card">
+        <div class="fn-name">Importer un CSV <span class="fn-tag">import</span></div>
+        <div class="fn-desc">Permet de charger un fichier CSV précédemment exporté pour reprendre un inventaire sur un autre appareil. L'application parse le fichier, recrée tous les arbres en mémoire et repose tous les marqueurs sur la carte.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ SECTION 5 ══════════════════════════════════ -->
+  <div class="section" id="s5">
+    <div class="section-header">
+      <span class="section-num">05</span>
+      <span class="section-icon">🏙️</span>
+      <h2>Personnaliser pour Moissy-Cramayel et le bureau d'études</h2>
+    </div>
+
+    <p>Voici les lignes précises à modifier dans le fichier <code>index.html</code> pour adapter l'application à votre contexte. Vous pouvez ouvrir le fichier avec un éditeur de texte simple (Notepad++, Visual Studio Code, ou même le Bloc-notes de Windows).</p>
+
+    <h3>1. Nom et identité de l'application</h3>
+    <div class="perso-block">
+      <h4>🏷️ Titre dans l'onglet du navigateur</h4>
+      <p>Cherchez la ligne :</p>
+      <pre><code><span class="key">&lt;title&gt;</span><span class="val">SIG Arbres — Inventaire de terrain</span><span class="key">&lt;/title&gt;</span></code></pre>
+      <p>Remplacez par :</p>
+      <pre><code><span class="key">&lt;title&gt;</span><span class="val">SIG Arbres — Moissy-Cramayel — BET</span><span class="key">&lt;/title&gt;</span></code></pre>
+    </div>
+
+    <div class="perso-block">
+      <h4>🌳 Sous-titre affiché dans l'en-tête</h4>
+      <p>Cherchez la ligne (vers le bas du fichier, dans la section HTML) :</p>
+      <pre><code><span class="val">Inventaire de terrain — Bureau d'Études</span></code></pre>
+      <p>Remplacez par :</p>
+      <pre><code><span class="val">Ville de Moissy-Cramayel — Service Espaces Verts</span></code></pre>
+    </div>
+
+    <h3>2. Centre de la carte — Moissy-Cramayel</h3>
+    <div class="perso-block">
+      <h4>📍 Centrage au démarrage</h4>
+      <p>La carte est déjà centrée sur Moissy-Cramayel. Pour ajuster encore plus précisément (par exemple sur un parc ou un quartier particulier), cherchez :</p>
+      <pre><code><span class="key">center:</span> <span class="val">[48.6167, 2.5833]</span>,
+<span class="key">zoom:</span> <span class="val">14</span></code></pre>
+      <p>Ajustez le zoom : <strong>14</strong> = vue de la commune, <strong>16</strong> = vue de quartier, <strong>18</strong> = vue parcelle. Pour connaître les coordonnées exactes d'un lieu, ouvrez Google Maps, faites un clic droit, et les coordonnées apparaissent.</p>
+    </div>
+
+    <h3>3. Copyright et pied de page</h3>
+    <div class="perso-block">
+      <h4>© Mention dans l'export image</h4>
+      <p>Cherchez (deux occurrences dans le fichier) :</p>
+      <pre><code><span class="val">© 2026 Bureau d'Études — M. Prévost</span></code></pre>
+      <p>Remplacez par votre mention officielle, par exemple :</p>
+      <pre><code><span class="val">© 2026 Ville de Moissy-Cramayel — Service Espaces Verts</span></code></pre>
+    </div>
+
+    <h3>4. Noms dans les exports CSV et e-mail</h3>
+    <div class="perso-block">
+      <h4>📤 Nom des fichiers exportés</h4>
+      <p>Cherchez :</p>
+      <pre><code><span class="val">inventaire_BET_Prevost_</span></code></pre>
+      <p>Remplacez par :</p>
+      <pre><code><span class="val">inventaire_MoissyCramayel_</span></code></pre>
+      <p>Le fichier téléchargé s'appellera alors <code>inventaire_MoissyCramayel_2026-03-20.csv</code>.</p>
+    </div>
+
+    <h3>5. Résumé textuel de l'inventaire (e-mail)</h3>
+    <div class="perso-block">
+      <h4>📧 Texte envoyé par e-mail</h4>
+      <p>Cherchez la ligne :</p>
+      <pre><code><span class="val">'🌳 Inventaire BET M. Prévost\n'</span></code></pre>
+      <p>Remplacez par :</p>
+      <pre><code><span class="val">'🌳 Inventaire arbres — Moissy-Cramayel\n'</span></code></pre>
+    </div>
+
+    <div class="callout success">
+      <span class="callout-icon">✅</span>
+      <div class="callout-body">
+        <strong>Résumé des 5 modifications pour Moissy-Cramayel</strong>
+        <p>1. Titre de l'onglet — 2. Sous-titre en-tête — 3. Centrage carte — 4. Copyright pied de page — 5. Nom des fichiers exportés. Ces 5 changements suffisent à personnaliser complètement l'outil pour votre collectivité.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ SECTION 6 ══════════════════════════════════ -->
+  <div class="section" id="s6">
+    <div class="section-header">
+      <span class="section-num">06</span>
+      <span class="section-icon">🚀</span>
+      <h2>Déployer sur un serveur web</h2>
+    </div>
+
+    <p>L'application ne nécessite qu'un <strong>serveur web statique</strong> — c'est-à-dire un serveur capable de distribuer des fichiers HTML. Pas besoin de base de données, pas besoin de PHP, pas besoin de Node.js. C'est l'hébergement le plus simple et le moins cher qui existe.</p>
+
+    <h3>Prérequis serveur minimaux</h3>
+    <table>
+      <thead>
+        <tr><th>Élément</th><th>Requis</th><th>Détail</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Type d'hébergement</td><td>✅ Oui</td><td>Tout hébergement web standard (OVH, PlanetHoster, Infomaniak, o2switch…)</td></tr>
+        <tr><td>PHP / MySQL</td><td>❌ Non</td><td>Aucune base de données nécessaire — les données sont stockées dans le navigateur</td></tr>
+        <tr><td>HTTPS</td><td>⚠️ Recommandé</td><td>Le GPS du téléphone est bloqué sur HTTP non sécurisé par les navigateurs modernes. Un certificat SSL (gratuit avec Let's Encrypt) est nécessaire pour la géolocalisation.</td></tr>
+        <tr><td>Espace disque</td><td>✅ Minimal</td><td>Le fichier <code>index.html</code> fait environ 250 ko — n'importe quel hébergement convient</td></tr>
+        <tr><td>Bande passante</td><td>✅ Faible</td><td>Seules les tuiles de carte (images OSM/Google) consomment du réseau, côté navigateur</td></tr>
+        <tr><td>Nom de domaine</td><td>✅ Optionnel</td><td>L'application peut vivre sur un sous-domaine ou dans un dossier existant</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Étapes de déploiement</h3>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Préparez votre fichier</strong>
+          <p>Faites les personnalisations décrites en section 5 (nom, coordonnées, copyright). Enregistrez le fichier sous le nom <code>index.html</code>.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Connectez-vous à votre hébergement</strong>
+          <p>Via le gestionnaire de fichiers de votre panneau d'hébergement (cPanel, Plesk, DirectAdmin…) ou via un logiciel FTP comme FileZilla.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Déposez le fichier</strong>
+          <p>Copiez <code>index.html</code> dans le dossier <code>public_html</code> (ou <code>www</code>, ou un sous-dossier de votre choix). Un seul fichier suffit.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Activez HTTPS</strong>
+          <p>Dans le panneau de votre hébergeur, activez le certificat SSL gratuit Let's Encrypt (proposé par tous les hébergeurs modernes en un clic). Cela active l'adresse <code>https://</code> indispensable pour le GPS.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <strong>Testez sur mobile</strong>
+          <p>Ouvrez l'adresse sur votre téléphone, autorisez la géolocalisation, et testez le cycle complet : GPS → formulaire → enregistrement → export CSV.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout warning">
+      <span class="callout-icon">⚠️</span>
+      <div class="callout-body">
+        <strong>Important : les données restent sur l'appareil</strong>
+        <p>Les arbres saisis sont stockés dans le navigateur de chaque appareil (<code>localStorage</code>). Si deux agents de terrain utilisent l'application sur deux téléphones différents, leurs inventaires ne se synchronisent pas automatiquement. Pour partager les données, chacun exporte son CSV et vous les fusionnez dans Excel. Pour une synchronisation en temps réel, il faudrait une évolution vers une base de données (voir section 8).</p>
+      </div>
+    </div>
+
+    <h3>Option : utilisation hors ligne complète (PWA)</h3>
+    <p>Il est possible d'aller plus loin et de transformer l'application en <em>Progressive Web App</em> (PWA), ce qui permet de l'installer sur l'écran d'accueil du téléphone comme une vraie application, et de la faire fonctionner entièrement hors connexion (y compris les tuiles de carte en cache). C'est une évolution possible sur demande.</p>
+  </div>
+
+  <!-- ══════════════════════════════════ SECTION 7 ══════════════════════════════════ -->
+  <div class="section" id="s7">
+    <div class="section-header">
+      <span class="section-num">07</span>
+      <span class="section-icon">🎨</span>
+      <h2>Personnaliser les couleurs et l'apparence</h2>
+    </div>
+
+    <p>J'ai organisé toutes les couleurs en variables au début du CSS. Il suffit de modifier ces quelques lignes pour changer entièrement l'aspect de l'application :</p>
+
+    <pre><code><span class="comment">/* Cherchez ce bloc au début du fichier, dans la balise &lt;style&gt; */</span>
+:root {
+  <span class="key">--forest:</span>   <span class="val">#1a2e1a</span>;  <span class="comment">/* Fond principal (vert très sombre)</span>     */
+  <span class="key">--moss:</span>     <span class="val">#2e4a2e</span>;  <span class="comment">/* Fond secondaire (vert mousse)</span>         */
+  <span class="key">--fern:</span>     <span class="val">#3d6b3d</span>;  <span class="comment">/* Bordures et éléments discrets</span>        */
+  <span class="key">--leaf:</span>     <span class="val">#5a9a4a</span>;  <span class="comment">/* Couleur principale (vert feuille)</span>    */
+  <span class="key">--sage:</span>     <span class="val">#a8c897</span>;  <span class="comment">/* Textes sur fond sombre</span>               */
+  <span class="key">--cream:</span>    <span class="val">#f5f0e8</span>;  <span class="comment">/* Texte principal clair</span>                */
+  <span class="key">--amber:</span>    <span class="val">#d4891a</span>;  <span class="comment">/* Bouton export (orange ambre)</span>         */
+  <span class="key">--rust:</span>     <span class="val">#c05a2a</span>;  <span class="comment">/* Bouton danger / suppression</span>          */
+}</code></pre>
+
+    <div class="perso-block">
+      <h4>🎨 Exemple : thème bleu municipal</h4>
+      <p>Pour donner un aspect institutionnel bleu-gris (couleurs de collectivité), remplacez par exemple :</p>
+      <pre><code><span class="key">--forest:</span>   <span class="val">#1a2540</span>;  <span class="comment">/* bleu nuit</span>  */
+<span class="key">--moss:</span>     <span class="val">#2a3a5e</span>;  <span class="comment">/* bleu marine</span> */
+<span class="key">--leaf:</span>     <span class="val">#4a7fc1</span>;  <span class="comment">/* bleu vif</span>   */
+<span class="key">--sage:</span>     <span class="val">#a0bcdd</span>;  <span class="comment">/* bleu ciel</span>  */</code></pre>
+    </div>
+
+    <div class="perso-block">
+      <h4>🔤 Changer les polices de caractères</h4>
+      <p>L'application utilise deux polices Google Fonts :</p>
+      <p><code>DM Serif Display</code> → les titres élégants en serif</p>
+      <p><code>DM Mono</code> → les textes techniques en chasse fixe</p>
+      <p>Pour les remplacer, modifiez la ligne <code>&lt;link href="https://fonts.googleapis.com/...</code> en début de fichier, et remplacez les occurrences de <code>'DM Mono', monospace</code> et <code>'DM Serif Display', serif</code> dans le CSS.</p>
+    </div>
+
+    <div class="perso-block">
+      <h4>🌳 Changer l'icône d'arbre sur la carte</h4>
+      <p>L'icône est dessinée en SVG dans la fonction <code>makeIcon()</code>. Vous pouvez la remplacer par une image PNG/SVG de votre choix en changeant :</p>
+      <pre><code><span class="comment">// Remplacer makeIcon() par une image externe :</span>
+<span class="key">return</span> L.icon({
+  <span class="key">iconUrl:</span>    <span class="val">'./mon-icone-arbre.png'</span>,
+  <span class="key">iconSize:</span>   <span class="val">[32, 40]</span>,
+  <span class="key">iconAnchor:</span> <span class="val">[16, 38]</span>
+});</code></pre>
+    </div>
+
+    <div class="perso-block">
+      <h4>📍 Changer le fond de carte par défaut</h4>
+      <p>Par défaut la carte s'ouvre sur OpenStreetMap. Pour démarrer sur Google Satellite, cherchez la ligne :</p>
+      <pre><code><span class="val">layerOSM.addTo(map);</span>
+<span class="val">let activeLayer = layerOSM;</span></code></pre>
+      <p>Et remplacez par :</p>
+      <pre><code><span class="val">layerIGN.addTo(map);</span>
+<span class="val">let activeLayer = layerIGN;</span></code></pre>
+    </div>
+
+    <div class="perso-block">
+      <h4>📋 Ajouter ou retirer des champs dans le formulaire</h4>
+      <p>Pour ajouter un champ (ex. « Numéro de patrimoine »), ajoutez dans le HTML du formulaire :</p>
+      <pre><code><span class="key">&lt;label</span> for=<span class="val">"field-patrimoine"</span><span class="key">&gt;</span>N° Patrimoine<span class="key">&lt;/label&gt;</span>
+<span class="key">&lt;input</span> type=<span class="val">"text"</span> id=<span class="val">"field-patrimoine"</span> placeholder=<span class="val">"ex. ARB-0042"</span> <span class="key">/&gt;</span></code></pre>
+      <p>Puis dans la fonction <code>doSave()</code>, récupérez la valeur en ajoutant :</p>
+      <pre><code><span class="key">const</span> patrimoine = document.getElementById(<span class="val">'field-patrimoine'</span>).value;</code></pre>
+      <p>Et incluez-la dans l'objet <code>tree</code> et dans la fonction <code>buildCSV()</code>.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════ SECTION 8 ══════════════════════════════════ -->
+  <div class="section" id="s8">
+    <div class="section-header">
+      <span class="section-num">08</span>
+      <span class="section-icon">🔭</span>
+      <h2>Pistes d'évolution suggérées</h2>
+    </div>
+
+    <p>L'application dans sa forme actuelle couvre l'essentiel d'un inventaire de terrain. Voici les évolutions les plus utiles que je pourrais développer si vous le souhaitez :</p>
+
+    <table>
+      <thead>
+        <tr><th>Évolution</th><th>Intérêt</th><th>Complexité</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>📸 <strong>Photo de l'arbre</strong></td>
+          <td>Prendre une photo directement depuis l'application, stockée avec la fiche</td>
+          <td>Moyenne</td>
+        </tr>
+        <tr>
+          <td>☁️ <strong>Synchronisation cloud</strong></td>
+          <td>Partager les données entre plusieurs agents de terrain en temps réel (via Firebase ou Supabase gratuits)</td>
+          <td>Élevée</td>
+        </tr>
+        <tr>
+          <td>📏 <strong>Diamètre / circonférence</strong></td>
+          <td>Ajouter un champ de mesure de tronc, courant dans les inventaires patrimoniaux</td>
+          <td>Faible</td>
+        </tr>
+        <tr>
+          <td>🔴 <strong>Couleur par état sanitaire</strong></td>
+          <td>Marqueurs verts / orange / rouges selon l'état sanitaire (Bon / Moyen / Mauvais)</td>
+          <td>Faible</td>
+        </tr>
+        <tr>
+          <td>📊 <strong>Statistiques détaillées</strong></td>
+          <td>Tableau de bord avec répartition par espèce, par état, histogrammes</td>
+          <td>Moyenne</td>
+        </tr>
+        <tr>
+          <td>🗂️ <strong>Zones / parcelles</strong></td>
+          <td>Délimiter des zones sur la carte et affecter chaque arbre à une zone</td>
+          <td>Élevée</td>
+        </tr>
+        <tr>
+          <td>📱 <strong>Installation PWA</strong></td>
+          <td>Installer l'application sur l'écran d'accueil du téléphone, fonctionnement hors ligne complet avec cache des tuiles</td>
+          <td>Moyenne</td>
+        </tr>
+        <tr>
+          <td>🖨️ <strong>Export PDF imprimable</strong></td>
+          <td>Générer un rapport PDF mis en page avec liste complète, carte et tableau récapitulatif</td>
+          <td>Élevée</td>
+        </tr>
+        <tr>
+          <td>🔢 <strong>Numérotation automatique</strong></td>
+          <td>Attribuer un numéro de patrimoine incrémental à chaque arbre saisi</td>
+          <td>Faible</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout info">
+      <span class="callout-icon">💬</span>
+      <div class="callout-body">
+        <strong>Pour toute évolution ou adaptation</strong>
+        <p>Cette documentation, comme l'application elle-même, peut évoluer. N'hésitez pas à me soumettre vos besoins terrain : les ajustements listés ci-dessus peuvent être intégrés progressivement dans le même fichier unique, sans changer votre façon de déployer l'outil.</p>
+      </div>
+    </div>
+
+    <hr />
+
+    <div class="callout tip">
+      <span class="callout-icon">🔑</span>
+      <div class="callout-body">
+        <strong>Rappel des points clés</strong>
+        <p>
+          <strong>Un seul fichier HTML</strong> — pas d'installation, pas de dépendance.<br>
+          <strong>HTTPS obligatoire</strong> pour le GPS en production.<br>
+          <strong>Les données restent dans le navigateur</strong> — pensez à exporter régulièrement en CSV.<br>
+          <strong>5 lignes à modifier</strong> pour personnaliser l'outil à Moissy-Cramayel.<br>
+          <strong>Tout hébergement web standard</strong> convient au déploiement.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div>🌳 SIG Arbres — Documentation technique · Bureau d'Études · Moissy-Cramayel</div>
+  <div style="margin-top:6px">Document généré en mars 2026 · Hébergeable sur tout site web · Format HTML autonome</div>
+</footer>
+
+</body>
+</html>

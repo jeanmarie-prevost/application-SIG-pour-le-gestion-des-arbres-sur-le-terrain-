@@ -1,0 +1,4703 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>SIG Arbres — Inventaire de terrain</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --forest:   #1a2e1a;
+      --moss:     #2e4a2e;
+      --fern:     #3d6b3d;
+      --leaf:     #5a9a4a;
+      --sage:     #a8c897;
+      --cream:    #f5f0e8;
+      --parchment:#e8dfc8;
+      --bark:     #7a5c3a;
+      --amber:    #d4891a;
+      --rust:     #c05a2a;
+      --shadow:   rgba(10,20,10,0.35);
+      --panel-w:  340px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      height: 100dvh; /* dynamic viewport height — works on mobile */
+    }
+
+    body {
+      font-family: 'DM Mono', monospace;
+      background: var(--forest);
+      color: var(--cream);
+      height: 100dvh;
+      max-height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      inset: 0;
+    }
+
+    .btn-fullscreen {
+      background: transparent;
+      border: 1px solid var(--fern);
+      color: var(--fern);
+      padding: 6px 10px;
+      font-size: 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all .2s;
+      font-family: 'DM Mono', monospace;
+    }
+    .btn-fullscreen:hover { color: var(--sage); border-color: var(--sage); background: rgba(90,154,74,0.08); }
+
+    /* Bouton Quitter — mobile portrait seulement */
+    .btn-quit-mobile { display: none; border-color: var(--rust); color: var(--rust); }
+    .btn-quit-mobile:hover { background: var(--rust) !important; color: var(--cream) !important; border-color: var(--rust) !important; }
+
+    /* Bouton Plein écran paysage mobile — paysage seulement */
+    .btn-fs-landscape { display: none; border-color: var(--leaf); color: var(--leaf); gap: 4px; }
+    .btn-fs-landscape:hover { background: var(--leaf) !important; color: var(--forest) !important; border-color: var(--leaf) !important; }
+    .btn-fs-landscape .fs-icon { font-size: 1rem; line-height: 1; }
+    .btn-fs-landscape .fs-label { font-size: 0.62rem; letter-spacing: 0.06em; white-space: nowrap; }
+    .fs-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    @media (max-width: 480px) { .fs-label { display: none; } }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      height: 56px;
+      background: var(--forest);
+      border-bottom: 1px solid var(--moss);
+      z-index: 1000;
+      flex-shrink: 0;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-icon {
+      width: 34px; height: 34px;
+      background: var(--leaf);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .logo-text {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.2rem;
+      letter-spacing: 0.02em;
+      color: var(--sage);
+    }
+    .logo-sub {
+      font-size: 0.6rem;
+      color: var(--fern);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+    .header-stats {
+      display: flex;
+      gap: 24px;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-num {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: var(--leaf);
+    }
+    .stat-lbl {
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--fern);
+    }
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── MAP ── */
+    #map {
+      flex: 1;
+      position: relative;
+    }
+    .leaflet-container {
+      background: #2a3a2a;
+    }
+
+    /* Crosshair cursor when adding */
+    #map.adding-mode { cursor: crosshair !important; }
+
+    /* ── SIDE PANEL ── */
+    .panel {
+      width: var(--panel-w);
+      background: var(--forest);
+      border-left: 1px solid var(--moss);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+      transition: width .3s ease, border .3s ease;
+      position: relative;
+    }
+
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--moss);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 12px 8px;
+      background: transparent;
+      border: none;
+      color: var(--fern);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .2s;
+      border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active {
+      color: var(--sage);
+      border-bottom-color: var(--leaf);
+      background: rgba(90,154,74,0.07);
+    }
+    .tab-btn:hover:not(.active) { color: var(--sage); }
+
+    .tab-content {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+    .tab-content.active {
+      display: flex;
+    }
+
+    /* ── FORM ── */
+    .form-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+    .form-scroll::-webkit-scrollbar { width: 4px; }
+    .form-scroll::-webkit-scrollbar-track { background: var(--forest); }
+    .form-scroll::-webkit-scrollbar-thumb { background: var(--moss); border-radius: 2px; }
+
+    .section-title {
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--fern);
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--moss);
+    }
+
+    .coords-display {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .coord-box {
+      background: var(--moss);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .coord-label {
+      font-size: 0.55rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--sage);
+      margin-bottom: 4px;
+    }
+    .coord-value {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--cream);
+      font-family: 'DM Mono', monospace;
+    }
+    .coord-value.empty { color: var(--fern); font-style: italic; }
+
+    label {
+      display: block;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--sage);
+      margin-bottom: 6px;
+    }
+    input, select, textarea {
+      width: 100%;
+      background: var(--moss);
+      border: 1px solid var(--fern);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: var(--cream);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      margin-bottom: 14px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--leaf);
+      box-shadow: 0 0 0 3px rgba(90,154,74,0.15);
+    }
+    select option { background: var(--moss); }
+    textarea { resize: vertical; min-height: 70px; }
+
+    .date-row {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1.3fr;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .date-row select {
+      margin-bottom: 0;
+      text-align: center;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .form-row > div { }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: none;
+      border-radius: 7px;
+      padding: 10px 16px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .18s;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--leaf);
+      color: var(--forest);
+      font-weight: 500;
+    }
+    .btn-primary:hover { background: var(--sage); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-secondary {
+      background: var(--moss);
+      color: var(--sage);
+      border: 1px solid var(--fern);
+    }
+    .btn-secondary:hover { background: var(--fern); color: var(--cream); }
+
+    .btn-danger {
+      background: transparent;
+      color: var(--rust);
+      border: 1px solid var(--rust);
+    }
+    .btn-danger:hover { background: var(--rust); color: var(--cream); }
+
+    .btn-export {
+      background: var(--amber);
+      color: var(--forest);
+      font-weight: 500;
+    }
+    .btn-export:hover { background: #e09a2a; transform: translateY(-1px); }
+
+    .btn-next {
+      background: var(--fern);
+      color: var(--cream);
+      border: 1px solid var(--leaf);
+      flex: 0 0 auto !important;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      letter-spacing: 0;
+    }
+    .btn-next:hover { background: var(--leaf); color: var(--forest); transform: translateY(-1px); }
+
+    .btn-add-mode {
+      background: var(--bark);
+      color: var(--cream);
+    }
+    .btn-add-mode.active {
+      background: var(--leaf);
+      color: var(--forest);
+      box-shadow: 0 0 12px rgba(90,154,74,0.4);
+    }
+    .btn-add-mode:hover { opacity: 0.85; }
+
+    .form-actions {
+      display: flex;
+      gap: 8px;
+      padding: 16px 20px;
+      border-top: 1px solid var(--moss);
+      flex-shrink: 0;
+    }
+    .form-actions .btn { flex: 1; }
+
+    /* ── LIST TAB ── */
+    .list-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--moss);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .list-count {
+      font-size: 0.65rem;
+      color: var(--fern);
+      letter-spacing: 0.1em;
+    }
+    .list-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .list-scroll::-webkit-scrollbar { width: 4px; }
+    .list-scroll::-webkit-scrollbar-track { background: var(--forest); }
+    .list-scroll::-webkit-scrollbar-thumb { background: var(--moss); border-radius: 2px; }
+
+    .tree-card {
+      background: var(--moss);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: all .15s;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .tree-card:hover { border-color: var(--fern); background: #334a33; }
+    .tree-card.selected { border-color: var(--leaf); background: rgba(90,154,74,0.1); }
+
+    .tree-card-icon {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--fern);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .tree-card-info { flex: 1; min-width: 0; }
+    .tree-card-name {
+      font-weight: 500;
+      font-size: 0.8rem;
+      color: var(--cream);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tree-card-type {
+      font-size: 0.65rem;
+      color: var(--sage);
+      margin-top: 2px;
+    }
+    .tree-card-coords {
+      font-size: 0.58rem;
+      color: var(--fern);
+      margin-top: 4px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    .tree-card-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .tree-card-edit {
+      background: transparent;
+      border: none;
+      color: var(--fern);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: all .15s;
+      line-height: 1;
+    }
+    .tree-card-edit:hover { color: var(--sage); background: rgba(90,154,74,0.15); }
+
+    /* ── EDIT MODAL ── */
+    .edit-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 9995;
+      background: rgba(10,20,10,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      backdrop-filter: blur(3px);
+    }
+    .edit-modal-backdrop.hidden { display: none; }
+
+    .edit-modal {
+      background: var(--forest);
+      border: 1px solid var(--fern);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 420px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6);
+      animation: modal-in .22s cubic-bezier(.22,1,.36,1);
+    }
+    @keyframes modal-in {
+      from { transform: translateY(20px) scale(.97); opacity: 0; }
+      to   { transform: translateY(0)    scale(1);   opacity: 1; }
+    }
+    .edit-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px 12px;
+      border-bottom: 1px solid var(--moss);
+      flex-shrink: 0;
+    }
+    .edit-modal-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1rem;
+      color: var(--sage);
+    }
+    .edit-modal-close {
+      background: transparent;
+      border: none;
+      color: var(--fern);
+      font-size: 1.1rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 5px;
+      transition: all .15s;
+      line-height: 1;
+    }
+    .edit-modal-close:hover { color: var(--rust); background: rgba(192,90,42,0.1); }
+
+    .edit-modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 18px;
+    }
+    .edit-modal-body::-webkit-scrollbar { width: 4px; }
+    .edit-modal-body::-webkit-scrollbar-track { background: var(--forest); }
+    .edit-modal-body::-webkit-scrollbar-thumb { background: var(--moss); border-radius: 2px; }
+
+    .edit-coord-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .edit-coord-box {
+      background: var(--moss);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .edit-coord-label {
+      font-size: 0.52rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--sage);
+      margin-bottom: 3px;
+    }
+    .edit-coord-value {
+      font-size: 0.75rem;
+      color: var(--cream);
+      font-family: 'DM Mono', monospace;
+    }
+
+    .edit-modal-footer {
+      display: flex;
+      gap: 8px;
+      padding: 12px 18px;
+      border-top: 1px solid var(--moss);
+      flex-shrink: 0;
+    }
+    .edit-modal-footer .btn { flex: 1; }
+
+    .tree-card-del {
+      background: transparent;
+      border: none;
+      color: var(--fern);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+    .tree-card-del:hover { color: var(--rust); background: rgba(192,90,42,0.12); }
+
+    .empty-list {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--fern);
+      font-size: 0.75rem;
+      line-height: 2;
+    }
+    .empty-list span { font-size: 2rem; display: block; margin-bottom: 12px; opacity: .5; }
+
+
+    /* ── LIST FOOTER ── */
+    .list-footer {
+      padding: 10px 14px 8px;
+      border-top: 1px solid var(--moss);
+      flex-shrink: 0;
+    }
+    .footer-btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    .footer-half-btn {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 8px;
+      border-radius: 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all .18s;
+      line-height: 1.3;
+      text-align: left;
+    }
+    .footer-btn-icon {
+      font-size: 1.1rem;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .footer-btn-label small {
+      font-size: 0.55rem;
+      opacity: 0.75;
+      letter-spacing: 0.08em;
+    }
+    .btn-export.footer-half-btn {
+      background: var(--amber);
+      color: var(--forest);
+      border: none;
+    }
+    .btn-export.footer-half-btn:hover { background: #e09a2a; }
+    .btn-import {
+      background: var(--moss);
+      color: var(--sage);
+      border: 1px dashed var(--fern);
+    }
+    .btn-import:hover {
+      background: var(--fern);
+      color: var(--cream);
+      border-style: solid;
+    }
+    .import-status {
+      font-size: 0.6rem;
+      color: var(--leaf);
+      text-align: center;
+      min-height: 1em;
+      letter-spacing: 0.04em;
+      margin-top: 5px;
+      transition: all .3s;
+    }
+    .import-status.error { color: var(--rust); }
+
+
+    /* ── BASEMAP PANEL OPEN BUTTON ── */
+    .basemap-btn-panel {
+      background: var(--leaf);
+      color: var(--forest);
+      border: 2px solid var(--sage);
+      font-weight: 600;
+    }
+    .basemap-btn-panel:hover {
+      background: var(--sage);
+      border-color: var(--cream);
+    }
+    .basemap-btn-panel .basemap-thumb {
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--forest);
+    }
+    .basemap-btn.hidden { display: none !important; }
+
+    /* ── PANEL TOGGLE ── */
+    /* ── PANEL TOGGLE BUTTON (inside tab bar) ── */
+    .panel-toggle-btn {
+      flex-shrink: 0;
+      background: var(--moss);
+      border: none;
+      border-left: 1px solid var(--fern);
+      color: var(--sage);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 6px 10px;
+      transition: all .2s;
+      min-width: 64px;
+    }
+    .panel-toggle-btn:hover {
+      background: var(--fern);
+      color: var(--cream);
+    }
+    .ptb-arrow {
+      font-size: 1rem;
+      line-height: 1;
+      font-weight: bold;
+    }
+    .ptb-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.52rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      line-height: 1;
+      color: var(--sage);
+    }
+    .panel-toggle-btn:hover .ptb-label { color: var(--cream); }
+
+    /* ── FLOATING RESTORE BUTTON (on map edge, always visible) ── */
+    .panel-restore-btn {
+      position: absolute;
+      top: 50%;
+      right: 0;
+      transform: translateY(-50%);
+      z-index: 902;
+      background: var(--leaf);
+      border: 2px solid var(--sage);
+      border-right: none;
+      border-radius: 12px 0 0 12px;
+      color: var(--forest);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 16px 8px;
+      transition: all .2s;
+      font-family: 'DM Mono', monospace;
+      box-shadow: -3px 0 12px rgba(0,0,0,.4);
+    }
+    .prb-arrow {
+      font-size: 1.1rem;
+      font-weight: bold;
+      line-height: 1;
+      color: var(--forest);
+    }
+    .prb-label {
+      font-size: 0.52rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      transform: rotate(180deg);
+      color: var(--forest);
+      font-weight: 500;
+      line-height: 1.3;
+    }
+    .panel-restore-btn:hover {
+      background: var(--sage);
+      border-color: var(--cream);
+    }
+    .panel-restore-btn.hidden { display: none; }
+
+    /* Panel collapsed state */
+    .panel.collapsed {
+      width: 0 !important;
+      border-left: none !important;
+      overflow: hidden;
+    }
+
+    /* ── RESPONSIVE PANEL ── */
+    /* Mobile portrait: panel is horizontal (bottom sheet) */
+    @media (max-width: 700px) {
+      .panel-restore-btn {
+        /* On mobile (portrait), panel is below map → restore btn floats bottom-center */
+        top: auto;
+        right: auto;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 10px 10px 0 0;
+        border: 1px solid var(--fern);
+        border-bottom: none;
+        flex-direction: row;
+        padding: 8px 18px;
+        gap: 8px;
+      }
+      .panel-restore-btn span {
+        writing-mode: horizontal-tb;
+        transform: none;
+        font-size: 0.58rem;
+      }
+      .panel.collapsed {
+        width: 100% !important;
+        max-height: 0 !important;
+        border-top: none !important;
+      }
+      .panel-toggle-btn { font-size: 0.65rem; }
+    }
+
+    /* ── MAP TOOLBAR ── */
+    .map-toolbar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 900;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--leaf);
+      color: var(--forest);
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      z-index: 9999;
+      opacity: 0;
+      transition: all .3s ease;
+      font-weight: 500;
+      pointer-events: none;
+      max-width: 90vw;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast.error {
+      background: var(--rust);
+      color: white;
+    }
+
+    /* ── BANNER ── */
+    .add-mode-banner {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 850;
+      background: rgba(90,154,74,0.92);
+      color: var(--forest);
+      text-align: center;
+      padding: 8px;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      font-weight: 500;
+      display: none;
+      backdrop-filter: blur(4px);
+    }
+    .add-mode-banner.visible { display: block; }
+
+    /* ── CUSTOM MARKER ── */
+    .custom-marker {
+      width: 32px; height: 40px;
+      position: relative;
+    }
+    .custom-marker svg { width: 100%; height: 100%; }
+
+    /* ── POPUP STYLES ── */
+    .leaflet-popup-content-wrapper {
+      background: var(--forest) !important;
+      color: var(--cream) !important;
+      border: 1px solid var(--fern) !important;
+      border-radius: 10px !important;
+      box-shadow: 0 4px 20px var(--shadow) !important;
+    }
+    .leaflet-popup-tip {
+      background: var(--forest) !important;
+    }
+    .popup-content { font-family: 'DM Mono', monospace; }
+    .popup-name {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.05rem;
+      color: var(--sage);
+      margin-bottom: 6px;
+    }
+    .popup-row {
+      display: flex;
+      gap: 8px;
+      font-size: 0.68rem;
+      color: var(--fern);
+      margin-bottom: 3px;
+    }
+    .popup-row span { color: var(--cream); }
+
+    /* ── ACCURACY BADGE ── */
+    .accuracy-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.6rem;
+      background: rgba(90,154,74,0.15);
+      border: 1px solid var(--fern);
+      border-radius: 10px;
+      padding: 3px 8px;
+      color: var(--sage);
+      margin-bottom: 14px;
+    }
+    .accuracy-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--leaf);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: .3; }
+    }
+
+
+    /* ── GPS SPLASH SCREEN ── */
+    #gps-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: var(--forest);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0;
+      transition: opacity .5s ease, visibility .5s ease;
+    }
+    #gps-splash.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .splash-inner {
+      text-align: center;
+      max-width: 380px;
+      padding: 40px 32px;
+      background: var(--moss);
+      border: 1px solid var(--fern);
+      border-radius: 18px;
+      box-shadow: 0 8px 48px rgba(0,0,0,.5);
+      animation: splash-in .4s cubic-bezier(.22,1,.36,1);
+    }
+    @keyframes splash-in {
+      from { transform: translateY(30px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .splash-icon {
+      font-size: 3.5rem;
+      margin-bottom: 20px;
+      display: block;
+      animation: bounce 2s infinite;
+    }
+    @keyframes bounce {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-8px); }
+    }
+    .splash-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.6rem;
+      color: var(--sage);
+      margin-bottom: 10px;
+    }
+    .splash-subtitle {
+      font-size: 0.72rem;
+      color: var(--fern);
+      letter-spacing: 0.08em;
+      line-height: 1.8;
+      margin-bottom: 28px;
+    }
+    .splash-subtitle strong { color: var(--sage); }
+    .splash-btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .btn-splash-gps {
+      background: var(--leaf);
+      color: var(--forest);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 10px;
+      padding: 14px 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all .2s;
+      width: 100%;
+    }
+    .btn-splash-gps:hover { background: var(--sage); transform: translateY(-2px); }
+    .btn-splash-skip {
+      background: transparent;
+      color: var(--fern);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border: 1px solid var(--fern);
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all .2s;
+      width: 100%;
+    }
+    .btn-splash-skip:hover { color: var(--sage); border-color: var(--sage); }
+    .splash-status {
+      margin-top: 16px;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: var(--fern);
+      min-height: 1.5em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .splash-spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--fern);
+      border-top-color: var(--leaf);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    .splash-spinner.active { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .splash-warn {
+      margin-top: 18px;
+      background: rgba(192,90,42,0.12);
+      border: 1px solid var(--rust);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.65rem;
+      color: #e8906a;
+      line-height: 1.7;
+      display: none;
+      text-align: left;
+    }
+    .splash-warn.visible { display: block; }
+    .splash-warn ul { margin: 6px 0 0 16px; }
+
+    .splash-copyright {
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid var(--moss);
+      font-size: 0.58rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--sage);
+      text-align: center;
+    }
+
+
+
+    /* ── PENDING MARKER (rouge pulsant) ── */
+    .pending-marker-pulse {
+      animation: pending-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pending-pulse {
+      0%,100% { stroke-opacity: 1; fill-opacity: 0.85; stroke-width: 3; }
+      50%      { stroke-opacity: 0.4; fill-opacity: 0.5; stroke-width: 6; }
+    }
+    .pending-tooltip {
+      background: #cc2200 !important;
+      color: white !important;
+      border: none !important;
+      font-family: 'DM Mono', monospace !important;
+      font-size: 0.65rem !important;
+      font-weight: 500 !important;
+      border-radius: 6px !important;
+      padding: 4px 10px !important;
+      white-space: nowrap !important;
+    }
+    .pending-tooltip::before { border-top-color: #cc2200 !important; }
+
+    /* ── BASEMAP SWITCHER ── */
+    .basemap-switcher {
+      position: absolute;
+      bottom: 30px;
+      left: 12px;
+      z-index: 900;
+      display: flex;
+      flex-direction: row;
+      gap: 6px;
+    }
+    .basemap-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      background: var(--forest);
+      border: 2px solid var(--moss);
+      border-radius: 10px;
+      padding: 6px 8px;
+      cursor: pointer;
+      transition: all .2s;
+      font-family: 'DM Mono', monospace;
+      color: var(--fern);
+      font-size: 0.55rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      width: 62px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    .basemap-btn:hover {
+      border-color: var(--fern);
+      color: var(--sage);
+    }
+    .basemap-btn.active {
+      border-color: var(--leaf);
+      color: var(--leaf);
+      background: rgba(90,154,74,0.12);
+      box-shadow: 0 0 0 3px rgba(90,154,74,0.18), 0 2px 8px rgba(0,0,0,.4);
+    }
+    .basemap-thumb {
+      width: 46px;
+      height: 34px;
+      border-radius: 5px;
+      overflow: hidden;
+      background: #2a3a2a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .basemap-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ── Bouton Ajouter intégré au basemap-switcher ── */
+    .basemap-btn-add {
+      border-color: var(--bark);
+    }
+    .basemap-btn-add .basemap-thumb-add {
+      background: var(--bark);
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--cream);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .basemap-btn-add .fab-label-cancel { display: none; }
+    .basemap-btn-add .fab-label-add    { display: inline; }
+    .add-btn-lbl {
+      color: var(--fern);
+      font-size: 0.55rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    /* État actif (rouge clignotant) */
+    .basemap-btn-add.active {
+      border-color: #e02020 !important;
+      background: rgba(224,32,32,0.1) !important;
+      animation: addbtn-pulse 0.9s ease-in-out infinite;
+    }
+    .basemap-btn-add.active .basemap-thumb-add {
+      background: #e02020;
+      animation: addbtn-thumb 0.9s ease-in-out infinite;
+    }
+    .basemap-btn-add.active .add-btn-lbl { color: #f08080; }
+    .basemap-btn-add.active .fab-label-cancel { display: inline; }
+    .basemap-btn-add.active .fab-label-add    { display: none; }
+
+    @keyframes addbtn-pulse {
+      0%,100% { box-shadow: 0 0 0 2px rgba(224,32,32,0.4), 0 2px 8px rgba(0,0,0,.4); }
+      50%      { box-shadow: 0 0 0 6px rgba(224,32,32,0.1), 0 2px 8px rgba(0,0,0,.4); }
+    }
+    @keyframes addbtn-thumb {
+      0%,100% { background: #e02020; }
+      50%      { background: #ff4040; }
+    }
+    /* Desktop : le bouton Ajouter dans le basemap-switcher reste visible et agrandi */
+    @media (min-width: 901px) {
+      .basemap-btn-add { width: 72px; }
+    }
+    #portrait-warning {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: var(--forest);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      text-align: center;
+      padding: 40px 40px 60px;
+    }
+    #portrait-warning.visible { display: flex; }
+
+    /* Phone rotation animation */
+    @keyframes rotate-hint {
+      0%   { transform: rotate(0deg);   }
+      25%  { transform: rotate(0deg);   }
+      55%  { transform: rotate(-90deg); }
+      75%  { transform: rotate(-90deg); }
+      90%  { transform: rotate(0deg);   }
+      100% { transform: rotate(0deg);   }
+    }
+    @keyframes phone-pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(90,154,74,0); }
+      50%      { box-shadow: 0 0 0 12px rgba(90,154,74,0.15); }
+    }
+    .orient-rotate-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 80px;
+      height: 80px;
+      background: rgba(46,74,46,0.6);
+      border: 2px solid var(--fern);
+      border-radius: 50%;
+      margin: 8px auto;
+      animation: phone-pulse 2.4s ease-in-out infinite;
+    }
+    .orient-phone-anim {
+      font-size: 2.6rem;
+      display: inline-block;
+      animation: rotate-hint 2.4s ease-in-out infinite;
+      transform-origin: center center;
+      line-height: 1;
+    }
+    .orient-icon {
+      font-size: 3.5rem;
+    }
+    .orient-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.4rem;
+      color: var(--sage);
+    }
+    .orient-sub {
+      font-size: 0.7rem;
+      color: var(--fern);
+      letter-spacing: 0.1em;
+      line-height: 1.9;
+    }
+    .orient-sub strong { color: var(--sage); }
+    .orient-force-btn {
+      margin-top: 10px;
+      background: transparent;
+      border: 1px solid var(--fern);
+      color: var(--fern);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 9px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .orient-force-btn:hover { color: var(--sage); border-color: var(--sage); }
+
+    .orient-welcome {
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--fern);
+      margin-top: -8px;
+    }
+    .orient-apptitle {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.9rem;
+      color: var(--sage);
+      line-height: 1.1;
+      text-align: center;
+    }
+    .orient-bureau {
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--leaf);
+      margin-bottom: 10px;
+    }
+    .orient-rotate-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      background: rgba(46,74,46,0.5);
+      border: 1px solid var(--fern);
+      border-radius: 14px;
+      padding: 18px 28px;
+      margin: 4px 0;
+    }
+    .orient-rotate-icon {
+      font-size: 2.2rem;
+      animation: rotate-hint 2s ease-in-out infinite;
+    }
+    .orient-copyright {
+      position: absolute;
+      bottom: 18px;
+      font-size: 0.58rem;
+      letter-spacing: 0.12em;
+      color: var(--fern);
+      text-transform: uppercase;
+    }
+
+    .orient-welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .orient-logo {
+      font-size: 2.8rem;
+      filter: drop-shadow(0 2px 8px rgba(90,154,74,0.4));
+    }
+    .orient-welcome-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.25rem;
+      color: var(--cream);
+      line-height: 1.5;
+      text-align: center;
+    }
+    .orient-welcome-sub {
+      font-size: 0.68rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--leaf);
+      font-weight: 500;
+    }
+    .orient-divider {
+      width: 60px;
+      height: 1px;
+      background: var(--fern);
+      margin: 6px 0;
+      opacity: 0.6;
+    }
+    .orient-copyright {
+      position: absolute;
+      bottom: 22px;
+      font-size: 0.58rem;
+      letter-spacing: 0.12em;
+      color: var(--fern);
+      text-transform: uppercase;
+    }
+
+    .orient-welcome-block {
+      text-align: center;
+      margin-bottom: 0;
+    }
+    .orient-logo-big {
+      font-size: 3rem;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 0 12px rgba(90,154,74,0.5));
+    }
+    .orient-welcome-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.15rem;
+      color: var(--sage);
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+    .orient-copyright-main {
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      color: var(--fern);
+      text-transform: uppercase;
+    }
+    .orient-divider {
+      width: 60px;
+      height: 1px;
+      background: var(--fern);
+      margin: 18px auto;
+      opacity: 0.5;
+    }
+
+    /* ── PANEL COLLAPSE ── */
+    .panel {
+      transition: width .3s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── SHARE MODAL ── */
+    .share-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 9990;
+      background: rgba(10,20,10,0.7);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: all .25s;
+    }
+    .share-modal-backdrop.open {
+      opacity: 1;
+      visibility: visible;
+    }
+    .share-modal {
+      background: var(--moss);
+      border: 1px solid var(--fern);
+      border-radius: 18px 18px 0 0;
+      padding: 24px 20px 32px;
+      width: 100%;
+      max-width: 480px;
+      transform: translateY(40px);
+      transition: transform .3s cubic-bezier(.22,1,.36,1);
+    }
+    .share-modal-backdrop.open .share-modal {
+      transform: translateY(0);
+    }
+    .share-modal-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.1rem;
+      color: var(--sage);
+      margin-bottom: 6px;
+    }
+    .share-modal-sub {
+      font-size: 0.62rem;
+      color: var(--fern);
+      letter-spacing: 0.08em;
+      margin-bottom: 20px;
+    }
+    .share-options {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .share-opt {
+      padding: 18px 10px !important;
+    }
+    .share-opt {
+      background: var(--forest);
+      border: 1px solid var(--fern);
+      border-radius: 10px;
+      padding: 14px 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: var(--sage);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: all .2s;
+      border: none;
+    }
+    .share-opt:hover { background: var(--fern); color: var(--cream); transform: translateY(-2px); }
+    .share-opt-icon { font-size: 1.6rem; }
+    .share-cancel {
+      width: 100%;
+      background: transparent;
+      border: 1px solid var(--fern);
+      color: var(--fern);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 11px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .share-cancel:hover { color: var(--sage); border-color: var(--sage); }
+
+    .orient-welcome {
+      text-align: center;
+      padding: 0 10px;
+    }
+    .orient-welcome-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: 1.15rem;
+      color: var(--sage);
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+    .orient-welcome-copy {
+      font-size: 0.6rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--fern);
+    }
+    .orient-divider {
+      width: 60px;
+      height: 1px;
+      background: var(--fern);
+      opacity: 0.5;
+    }
+
+    /* Hide portrait warning always — portrait fully supported */
+    #portrait-warning { display: none !important; }
+
+    /* ══════════════════════════════════════════════════════
+       MOBILE — PORTRAIT  (≤ 600px largeur)
+       Layout: carte en haut, panel bottom-sheet coulissant
+    ══════════════════════════════════════════════════════ */
+    @media (max-width: 600px) {
+
+      /* Header compact */
+      header {
+        height: 44px;
+        padding: 0 8px;
+      }
+      .logo-icon { width: 28px; height: 28px; font-size: 15px; }
+      .logo-text { font-size: 0.9rem; }
+      .logo-sub  { display: none; }
+      .header-stats { display: none; }
+
+      /* Masquer "Exporter" et "Localiser" en texte — icônes seulement */
+      .header-actions { gap: 4px; }
+      .btn-fullscreen {
+        padding: 6px 8px;
+        font-size: 0;   /* Cache le texte */
+        min-height: 36px;
+        min-width: 36px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      /* Garder seulement l'emoji visible */
+      #btn-print::before    { content: '📷'; font-size: 1.1rem; }
+      #btn-locate::before   { content: '📍'; font-size: 1.1rem; }
+      /* Plein écran desktop caché sur mobile portrait */
+      #btn-fullscreen { display: none; }
+      /* Plein écran paysage caché en portrait */
+      .btn-fs-landscape { display: none !important; }
+      /* Bouton quitter visible en portrait */
+      .btn-quit-mobile { display: flex !important; }
+
+      /* ── Layout principal : colonne ── */
+      .main {
+        flex-direction: column;
+        position: relative;
+      }
+
+      /* ── Carte : prend le reste de l'espace ── */
+      #map {
+        flex: 1;
+        min-height: 0;
+        position: relative;
+      }
+
+      /* ── Panel : bottom sheet fixe ── */
+      .panel {
+        width: 100% !important;
+        border-left: none !important;
+        border-top: 2px solid var(--leaf) !important;
+        flex-shrink: 0;
+        /* Hauteur contrôlée dynamiquement par JS via --panel-h */
+        height: var(--panel-h, 50vh);
+        max-height: 85vh;
+        min-height: 48px;
+        transition: height 0.32s cubic-bezier(.4,0,.2,1) !important;
+        position: relative;
+      }
+
+      /* Handle de drag en haut du panel */
+      .panel::before {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 4px;
+        background: var(--fern);
+        border-radius: 2px;
+        margin: 6px auto 0;
+        flex-shrink: 0;
+        cursor: ns-resize;
+      }
+
+      /* Panel replié = juste le tab bar visible */
+      .panel.collapsed {
+        height: 48px !important;
+        min-height: 48px;
+      }
+      .panel.collapsed .tab-content,
+      .panel.collapsed .form-scroll,
+      .panel.collapsed .list-scroll,
+      .panel.collapsed .form-actions,
+      .panel.collapsed .list-footer {
+        display: none !important;
+      }
+
+      /* Panel en hauteur maximale (formulaire) */
+      .panel.expanded {
+        height: 82vh !important;
+      }
+
+      /* Tabs : plus grands pour les pouces */
+      .panel-tabs {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--forest);
+      }
+      .tab-btn {
+        padding: 14px 8px;
+        font-size: 0.7rem;
+        min-height: 44px;
+      }
+      .panel-toggle-btn {
+        min-width: 56px;
+        min-height: 44px;
+        padding: 6px 8px;
+      }
+
+      /* Formulaire : inputs plus grands pour tactile */
+      input, select, textarea {
+        padding: 12px 14px;
+        font-size: 0.9rem;
+        min-height: 44px;
+        margin-bottom: 12px;
+      }
+      textarea { min-height: 80px; }
+
+      /* Date row : empiler sur petits écrans */
+      .date-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .date-row select:first-child { /* jour */
+        grid-column: 1;
+      }
+      .date-row select:nth-child(2) { /* mois */
+        grid-column: 2;
+      }
+      .date-row select:last-child { /* année */
+        grid-column: 1 / -1;
+      }
+
+      /* Form row : empiler en colonne */
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      /* Boutons actions formulaire : plus grands */
+      .form-actions {
+        padding: 12px 14px;
+        gap: 8px;
+        /* Ajouter padding pour éviter la barre de navigation iOS */
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+      }
+      .btn {
+        min-height: 48px;
+        font-size: 0.75rem;
+        padding: 12px 14px;
+      }
+      .btn-next {
+        min-height: 48px;
+        padding: 12px 16px;
+      }
+
+      /* Cartes liste : plus grands pour tactile */
+      .tree-card {
+        padding: 14px 12px;
+        margin-bottom: 8px;
+      }
+      .tree-card-edit,
+      .tree-card-del {
+        min-width: 36px;
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        padding: 4px;
+      }
+
+      /* Toolbar carte : ne pas masquer les boutons de zoom Leaflet */
+      .map-toolbar {
+        top: 8px;
+        left: 8px;
+      }
+
+      /* Basemap switcher : plus compact en portrait */
+      .basemap-switcher {
+        bottom: 12px;
+        left: 8px;
+        flex-direction: row;
+        gap: 4px;
+      }
+      .basemap-btn {
+        width: 52px;
+        padding: 5px 6px;
+      }
+      .basemap-thumb {
+        width: 38px;
+        height: 28px;
+      }
+
+      /* Toast : remonter au-dessus du panel */
+      .toast {
+        bottom: calc(var(--panel-h, 50vh) + 12px);
+      }
+
+      /* Banner mode ajout */
+      .add-mode-banner {
+        font-size: 0.75rem;
+        padding: 10px;
+      }
+
+      /* Restore btn : en bas au centre */
+      .panel-restore-btn {
+        top: auto;
+        right: auto;
+        bottom: calc(48px + env(safe-area-inset-bottom));
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 20px 20px 0 0;
+        border: 1px solid var(--fern);
+        border-bottom: none;
+        flex-direction: row;
+        padding: 8px 20px;
+        gap: 8px;
+        writing-mode: horizontal-tb;
+      }
+      .panel-restore-btn .prb-arrow {
+        writing-mode: horizontal-tb;
+        transform: none;
+        font-size: 1rem;
+      }
+      .panel-restore-btn .prb-label {
+        writing-mode: horizontal-tb;
+        transform: none;
+        font-size: 0.58rem;
+        white-space: nowrap;
+      }
+
+      /* Footer liste */
+      .list-footer {
+        padding: 8px 12px;
+        padding-bottom: max(8px, env(safe-area-inset-bottom));
+      }
+      .footer-half-btn {
+        min-height: 48px;
+        padding: 10px 8px;
+      }
+
+      /* Modal d'édition : full screen sur mobile */
+      .edit-modal {
+        max-width: 100%;
+        max-height: 95vh;
+        border-radius: 18px 18px 0 0;
+        margin-top: auto;
+      }
+      .edit-modal-backdrop {
+        align-items: flex-end;
+        padding: 0;
+      }
+      .edit-modal-footer {
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+      }
+
+      /* Améliorer la saisie : keyboard ne masque pas les champs */
+      .form-scroll {
+        padding: 14px;
+        padding-bottom: 8px;
+      }
+
+    } /* end @media portrait */
+
+
+    /* ══════════════════════════════════════════════════════
+       MOBILE — PAYSAGE  (hauteur ≤ 500px, largeur > 500px)
+       Layout: carte + panel côte à côte, panel réduit
+    ══════════════════════════════════════════════════════ */
+    @media (max-height: 500px) and (min-width: 500px) {
+
+      header {
+        height: 40px;
+        padding: 0 8px;
+      }
+      .logo-icon { width: 26px; height: 26px; font-size: 14px; }
+      .logo-text { font-size: 0.88rem; }
+      .logo-sub  { display: none; }
+      .header-stats { gap: 14px; }
+      .stat-num { font-size: 0.85rem; }
+      .stat-lbl { font-size: 0.48rem; }
+
+      /* Boutons header : icônes seulement */
+      .header-actions { gap: 4px; }
+      .btn-fullscreen {
+        padding: 5px 7px;
+        font-size: 0;
+        min-height: 34px;
+        min-width: 34px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      #btn-print::before  { content: '📷'; font-size: 1rem; }
+      #btn-locate::before { content: '📍'; font-size: 1rem; }
+      #btn-fullscreen { display: none; }
+      /* Plein écran paysage visible en mode paysage mobile */
+      .btn-fs-landscape { display: flex !important; font-size: 0.62rem !important; flex-direction: row; align-items: center; padding: 5px 8px; }
+      .btn-fs-landscape .fs-icon, .btn-fs-landscape .fs-label { font-size: inherit !important; }
+      /* Quitter masqué en paysage */
+      .btn-quit-mobile { display: none !important; }
+
+      /* Panel latéral plus étroit mais utilisable */
+      :root { --panel-w: min(52vw, 360px); }
+
+      .panel {
+        width: var(--panel-w) !important;
+        max-height: 100%;
+      }
+
+      /* Formulaire compact */
+      .form-scroll {
+        padding: 8px 12px;
+      }
+      input, select {
+        padding: 7px 10px;
+        font-size: 0.78rem;
+        margin-bottom: 7px;
+        min-height: 36px;
+      }
+      textarea {
+        min-height: 48px;
+        margin-bottom: 7px;
+      }
+      label {
+        font-size: 0.52rem;
+        margin-bottom: 3px;
+      }
+      .section-title { margin-bottom: 7px; font-size: 0.52rem; }
+      .coords-display { margin-bottom: 10px; gap: 6px; }
+      .coord-box { padding: 6px 8px; }
+      .coord-label { font-size: 0.46rem; }
+      .coord-value { font-size: 0.72rem; }
+
+      /* Date row compact */
+      .date-row { gap: 4px; margin-bottom: 7px; }
+
+      /* Form row : garder 2 colonnes */
+      .form-row { gap: 5px; }
+
+      /* Actions : compactes */
+      .form-actions { padding: 8px 12px; gap: 5px; }
+      .btn { min-height: 38px; padding: 7px 10px; font-size: 0.64rem; }
+      .btn-next { min-height: 38px; padding: 7px 12px; }
+
+      /* Tabs compactes */
+      .tab-btn { padding: 9px 5px; font-size: 0.58rem; min-height: 38px; }
+      .panel-toggle-btn { min-height: 38px; min-width: 48px; }
+      .ptb-label { font-size: 0.46rem; }
+
+      /* Cartes liste : compactes */
+      .tree-card { padding: 8px 10px; margin-bottom: 4px; gap: 8px; }
+      .tree-card-name { font-size: 0.74rem; }
+      .tree-card-type { font-size: 0.6rem; }
+      .tree-card-edit, .tree-card-del { min-width: 30px; min-height: 30px; font-size: 13px; }
+
+      /* Basemap switcher bas */
+      .basemap-switcher { bottom: 6px; left: 8px; gap: 4px; }
+      .basemap-btn { width: 50px; padding: 4px 5px; font-size: 0.48rem; }
+      .basemap-thumb { width: 36px; height: 26px; }
+
+      /* Footer liste compact */
+      .list-footer { padding: 6px 10px; }
+      .footer-half-btn { min-height: 40px; font-size: 0.56rem; padding: 7px 6px; }
+    }
+
+    /* ══════════════════════════════════════════════════════
+       TABLETTE portrait (601–900px) 
+    ══════════════════════════════════════════════════════ */
+    @media (min-width: 601px) and (max-width: 900px) and (orientation: portrait) {
+      :root { --panel-w: 100%; }
+      .main { flex-direction: column; }
+      #map { min-height: 55vh; }
+      .panel {
+        width: 100% !important;
+        max-height: 45vh;
+        border-left: none !important;
+        border-top: 1px solid var(--moss) !important;
+      }
+      .header-stats { display: none; }
+    }
+
+
+    /* ══════════════════════════════════════════════════════
+       TRÈS PETIT ÉCRAN  (≤ 375px — iPhone SE, petits Android)
+    ══════════════════════════════════════════════════════ */
+    @media (max-width: 375px) {
+      header { height: 40px; padding: 0 6px; }
+      .logo-icon { width: 24px; height: 24px; font-size: 13px; }
+      .logo-text { font-size: 0.82rem; }
+
+      /* Panel plus haut par défaut sur très petit écran */
+      :root { --panel-h: 52vh; }
+
+      /* Formulaire ultra compact */
+      .form-scroll { padding: 10px 10px; }
+      input, select { padding: 10px 10px; font-size: 0.82rem; margin-bottom: 9px; min-height: 40px; }
+      textarea { min-height: 64px; }
+      label { font-size: 0.52rem; margin-bottom: 3px; }
+
+      /* Date row : 3 colonnes compactes */
+      .date-row { grid-template-columns: 1fr 2fr 1.2fr; gap: 4px; }
+      .date-row select:first-child  { grid-column: auto; }
+      .date-row select:nth-child(2) { grid-column: auto; }
+      .date-row select:last-child   { grid-column: auto; }
+
+      /* Form row : 2 colonnes maintenu */
+      .form-row { grid-template-columns: 1fr 1fr; gap: 6px; }
+
+      .coords-display { gap: 6px; margin-bottom: 10px; }
+      .coord-box { padding: 7px 8px; }
+      .coord-value { font-size: 0.75rem; }
+      .coord-label { font-size: 0.48rem; }
+
+      .section-title { font-size: 0.52rem; margin-bottom: 8px; padding-bottom: 4px; }
+
+      /* Boutons actions */
+      .form-actions { padding: 10px; gap: 6px; }
+      .btn { min-height: 44px; font-size: 0.68rem; padding: 10px 10px; }
+      .btn-next { min-height: 44px; padding: 10px 12px; font-size: 0.85rem; }
+
+      /* Tabs */
+      .tab-btn { padding: 12px 4px; font-size: 0.6rem; }
+      .panel-toggle-btn { min-width: 46px; padding: 4px 6px; }
+      .ptb-label { font-size: 0.46rem; }
+
+      /* Liste */
+      .tree-card { padding: 10px 8px; gap: 8px; }
+      .tree-card-name { font-size: 0.72rem; }
+      .tree-card-type { font-size: 0.58rem; }
+      .tree-card-coords { font-size: 0.52rem; }
+      .tree-card-icon { width: 24px; height: 24px; font-size: 12px; }
+
+      /* FAB */
+      /* Basemap add button small screen handled by basemap-btn rules */
+
+      /* Footer liste */
+      .list-footer { padding: 6px 10px; }
+      .footer-half-btn { min-height: 44px; font-size: 0.56rem; padding: 8px 6px; }
+      .footer-btn-icon { font-size: 0.95rem; }
+    }
+
+    /* ══════════════════════════════════════════════════════
+       SAFE AREAS (iPhone notch / Dynamic Island / home bar)
+    ══════════════════════════════════════════════════════ */
+    @supports (padding: env(safe-area-inset-bottom)) {
+      @media (max-width: 600px) {
+        .list-footer,
+        .form-actions {
+          padding-bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+        header {
+          padding-top: env(safe-area-inset-top);
+        }
+      }
+    }
+
+
+
+
+
+    /* ── JPEG EXPORT OVERLAY ── */
+    #print-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 99998;
+      background: rgba(8,16,8,0.92);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      backdrop-filter: blur(6px);
+      padding: 12px;
+      overflow-y: auto;
+    }
+    #print-overlay.visible {
+      display: flex;
+    }
+
+    /* ── Top bar inside overlay ── */
+    .export-topbar {
+      width: min(88vw, 680px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 4px 8px;
+    }
+    .export-topbar-title {
+      font-family: 'DM Serif Display', serif;
+      font-size: .9rem;
+      color: #a8c897;
+      letter-spacing: .03em;
+    }
+    .export-topbar-close {
+      background: transparent;
+      border: 1px solid #3d6b3d;
+      border-radius: 50%;
+      color: #5a9a4a;
+      width: 32px; height: 32px;
+      font-size: .9rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all .18s;
+    }
+    .export-topbar-close:hover { background: #c05a2a; border-color: #c05a2a; color: #fff; }
+
+    /* ── Preview container (A4 landscape ratio) ── */
+    #print-preview-wrap {
+      position: relative;
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 10px 50px rgba(0,0,0,.9);
+      width: min(88vw, 680px);
+      aspect-ratio: 297 / 210;
+      flex-shrink: 0;
+      max-height: 52vh;
+    }
+
+    #jpeg-composite {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+
+    /* ── Spinner overlay ── */
+    #print-spinner {
+      position: absolute;
+      inset: 0;
+      background: rgba(26,46,26,.82);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 10;
+      color: #a8c897;
+      font-family: 'DM Mono', monospace;
+      font-size: .72rem;
+      letter-spacing: .12em;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Action bar (below preview) ── */
+    .export-actions {
+      width: min(88vw, 680px);
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      align-items: stretch;
+    }
+
+    /* Download button */
+    .export-btn-dl {
+      flex: 1;
+      background: #3d6b3d;
+      color: #a8c897;
+      border: 1px solid #5a9a4a;
+      border-radius: 10px;
+      padding: 8px 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: .62rem;
+      font-weight: 500;
+      letter-spacing: .07em;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all .2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+    .export-btn-dl:hover { background: #5a9a4a; color: #1a2e1a; }
+    .export-btn-dl .ebtn-icon { font-size: 1.2rem; line-height: 1; }
+    .export-btn-dl .ebtn-label { font-size: .54rem; line-height: 1.2; text-align: center; }
+
+    /* Share button — prominent */
+    .export-btn-share {
+      flex: 2;
+      background: #d4891a;
+      color: #1a2e1a;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 8px;
+      font-family: 'DM Mono', monospace;
+      font-size: .66rem;
+      font-weight: 600;
+      letter-spacing: .07em;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all .2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      box-shadow: 0 3px 12px rgba(212,137,26,.4);
+    }
+    .export-btn-share:hover { background: #f0a030; box-shadow: 0 4px 16px rgba(212,137,26,.6); }
+    .export-btn-share:active { transform: scale(.97); }
+    .export-btn-share .ebtn-icon { font-size: 1.3rem; line-height: 1; }
+    .export-btn-share .ebtn-label { font-size: .54rem; line-height: 1.2; text-align: center; }
+
+    /* Bouton retour */
+    .export-btn-back {
+      flex: 0 0 auto;
+      background: transparent;
+      color: #a8c897;
+      border: 1px solid #3d6b3d;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-family: 'DM Mono', monospace;
+      font-size: .58rem;
+      font-weight: 500;
+      letter-spacing: .07em;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all .2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+    .export-btn-back:hover { background: #2e4a2e; color: #f5f0e8; border-color: #5a9a4a; }
+    .export-btn-back .ebtn-icon { font-size: 1.1rem; line-height: 1; }
+    .export-btn-back .ebtn-label { font-size: .5rem; line-height: 1.2; text-align: center; }
+
+    /* Status line */
+    #jpeg-action-status {
+      width: min(88vw, 680px);
+      margin-top: 6px;
+      font-family: 'DM Mono', monospace;
+      font-size: .6rem;
+      color: #5a9a4a;
+      letter-spacing: .08em;
+      min-height: 1.1em;
+      text-align: center;
+    }
+    #jpeg-action-status.err { color: #c05a2a; }
+
+    @media (max-width: 700px) {
+      #print-preview-wrap { width: 98vw; }
+      .export-btn { padding: 10px 14px; font-size: .66rem; }
+    }
+
+
+    /* ── VARIETE COMBO (select + champ libre) ── */
+    .variete-combo {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .variete-combo select,
+    .variete-combo input {
+      margin-bottom: 0;
+    }
+    .variete-libre-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .variete-libre-label {
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--fern);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .variete-libre-input {
+      flex: 1;
+      background: var(--moss);
+      border: 1px dashed var(--fern);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--cream);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .variete-libre-input:focus {
+      border-color: var(--leaf);
+      border-style: solid;
+      box-shadow: 0 0 0 3px rgba(90,154,74,0.15);
+    }
+    .variete-libre-input::placeholder { color: var(--fern); opacity: 0.7; }
+    .variete-libre-input:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+
+<!-- GPS SPLASH SCREEN -->
+<div id="gps-splash">
+  <div class="splash-inner">
+    <span class="splash-icon">🌳</span>
+    <div class="splash-title">SIG Arbres</div>
+    <div class="splash-subtitle">
+      Inventaire de terrain — Bureau d'Études<br>
+      <strong>Ville de Moissy-Cramayel</strong>
+    </div>
+    <div class="splash-btn-group">
+      <button class="btn-splash-gps" id="splash-launch">
+        ⛶ Lancer en plein écran
+      </button>
+      <button class="btn-splash-skip" id="splash-skip" type="button">
+        Continuer sans plein écran →
+      </button>
+    </div>
+    <div class="splash-status">
+      <div class="splash-spinner" id="splash-spinner"></div>
+      <span id="splash-status-text"></span>
+    </div>
+    <div class="splash-warn" id="splash-warn">
+      <strong>⚠ La localisation a été refusée ou est indisponible.</strong>
+      <ul>
+        <li>Vérifiez les permissions du navigateur (icône 🔒 dans la barre d'adresse)</li>
+        <li>Sur mobile : Réglages → Confidentialité → Services de localisation</li>
+        <li>Vous pouvez quand même utiliser l'app en cliquant manuellement sur la carte</li>
+      </ul>
+      <br>
+      <button class="btn-splash-skip" id="splash-retry-skip" style="margin-top:4px">
+        Continuer sans GPS →
+      </button>
+    </div>
+    <div class="splash-copyright">© 2026 M. Prévost — Bureau d'Études</div>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon" style="overflow:visible;background:transparent;border-radius:0;width:38px;height:38px" id="logo-tree-icon">
+    </div>
+    <div>
+      <div class="logo-text">SIG Arbres</div>
+      <div class="logo-sub">Inventaire de terrain</div>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-lbl">Points</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num" id="stat-types">0</div>
+      <div class="stat-lbl">Espèces</div>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="btn-fullscreen" id="btn-print" title="Exporter en JPEG" onclick="printMap()" style="margin-right:4px">📷 Exporter</button>
+    <button class="btn-fullscreen" id="btn-locate" title="Me localiser par GPS" onclick="locateUser()">📍 Localiser</button>
+    <button class="btn-fullscreen" id="btn-fullscreen" title="Plein écran">⛶ Plein écran</button>
+    <button class="btn-fullscreen btn-quit-mobile" id="btn-quit" title="Quitter l'application" onclick="quitApp()">✕ Quitter</button>
+    <button class="btn-fullscreen btn-fs-landscape" id="btn-fs-landscape" title="Plein écran" onclick="toggleFullscreenLandscape()"><span class="fs-icon">⛶</span><span class="fs-label">Plein écran</span></button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- MAP -->
+  <div id="map">
+    <div class="map-toolbar">
+      <!-- leaflet zoom already built-in -->
+    </div>
+    <div class="basemap-switcher" id="basemap-switcher">
+      <button class="basemap-btn active" data-layer="osm" title="OpenStreetMap">
+        <div class="basemap-thumb">🗺️</div>
+        OSM
+      </button>
+      <button class="basemap-btn" data-layer="ign" title="Photo aérienne Google Satellite">
+        <div class="basemap-thumb">🛰️</div>
+        Google
+      </button>
+      <button class="basemap-btn basemap-btn-add" id="btn-add-mode" title="Ajouter un arbre">
+        <div class="basemap-thumb basemap-thumb-add"><span class="fab-label-add">＋</span><span class="fab-label-cancel">✕</span></div>
+        <span class="add-btn-lbl"><span class="fab-label-add">Ajouter</span><span class="fab-label-cancel">Annuler</span></span>
+      </button>
+      <button class="basemap-btn basemap-btn-panel hidden" id="btn-open-panel" title="Ouvrir le volet" onclick="togglePanel()">
+        <div class="basemap-thumb">▶</div>
+        Volet
+      </button>
+    </div>
+
+
+    <div class="add-mode-banner" id="add-banner">
+      ✚ Cliquez sur la carte pour placer un point
+    </div>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="panel" id="side-panel">
+    <div class="panel-tabs">
+      <button class="tab-btn active" data-tab="form">✏️ Saisie</button>
+      <button class="tab-btn" data-tab="list">🗂 Inventaire</button>
+      <button class="panel-toggle-btn" id="panel-toggle-btn" title="Réduire le volet"><span class="ptb-arrow">◀</span><span class="ptb-label">Réduire</span></button>
+    </div>
+
+    <!-- FORM TAB -->
+    <div class="tab-content active" id="tab-form">
+      <div class="form-scroll">
+
+        <!-- COORDS -->
+        <div class="section-title">Coordonnées GPS</div>
+        <div class="coords-display">
+          <div class="coord-box">
+            <div class="coord-label">Latitude</div>
+            <div class="coord-value empty" id="disp-lat">— —</div>
+          </div>
+          <div class="coord-box">
+            <div class="coord-label">Longitude</div>
+            <div class="coord-value empty" id="disp-lng">— —</div>
+          </div>
+        </div>
+
+        <!-- ARBRE -->
+        <div class="section-title">Identification de l'arbre</div>
+
+        <label>Date de plantation</label>
+        <div class="date-row" id="field-date-row">
+          <select id="field-date-dd" title="Jour"></select>
+          <select id="field-date-mm" title="Mois">
+            <option value="01">Janvier</option>
+            <option value="02">Février</option>
+            <option value="03">Mars</option>
+            <option value="04">Avril</option>
+            <option value="05">Mai</option>
+            <option value="06">Juin</option>
+            <option value="07">Juillet</option>
+            <option value="08">Août</option>
+            <option value="09">Septembre</option>
+            <option value="10">Octobre</option>
+            <option value="11">Novembre</option>
+            <option value="12">Décembre</option>
+          </select>
+          <select id="field-date-yyyy" title="Année"></select>
+        </div>
+        <label for="field-type">Type d'arbre</label>
+        <select id="field-type">
+          <option value="">— Sélectionner —</option>
+          <optgroup label="Feuillus">
+            <option>Chêne</option>
+            <option>Hêtre</option>
+            <option>Charme</option>
+            <option>Érable</option>
+            <option>Frêne</option>
+            <option>Tilleul</option>
+            <option>Orme</option>
+            <option>Platane</option>
+            <option>Peuplier</option>
+            <option>Bouleau</option>
+            <option>Aulne</option>
+            <option>Marronnier</option>
+            <option>Châtaignier</option>
+            <option>Noyer</option>
+            <option>Cerisier</option>
+            <option>Pommier</option>
+            <option>Poirier</option>
+          </optgroup>
+          <optgroup label="Résineux">
+            <option>Pin sylvestre</option>
+            <option>Pin maritime</option>
+            <option>Épicéa</option>
+            <option>Sapin blanc</option>
+            <option>Douglas</option>
+            <option>Mélèze</option>
+            <option>Cèdre</option>
+            <option>Cyprès</option>
+          </optgroup>
+          <optgroup label="Autre">
+            <option>Autre feuillu</option>
+            <option>Autre résineux</option>
+            <option>Inconnu</option>
+          </optgroup>
+        </select>
+
+        <label for="field-variete-select">Variété / Espèce latine</label>
+        <div class="variete-combo">
+          <select id="field-variete-select" onchange="onVarieteSelect('field')">
+            <option value="">— Sélectionner une espèce —</option>
+            <optgroup label="Chêne">
+              <option value="Quercus robur">Quercus robur — Chêne pédonculé</option>
+              <option value="Quercus petraea">Quercus petraea — Chêne sessile</option>
+              <option value="Quercus pubescens">Quercus pubescens — Chêne pubescent</option>
+              <option value="Quercus ilex">Quercus ilex — Chêne vert</option>
+              <option value="Quercus cerris">Quercus cerris — Chêne chevelu</option>
+              <option value="Quercus palustris">Quercus palustris — Chêne des marais</option>
+              <option value="Quercus rubra">Quercus rubra — Chêne rouge d'Amérique</option>
+            </optgroup>
+            <optgroup label="Hêtre">
+              <option value="Fagus sylvatica">Fagus sylvatica — Hêtre commun</option>
+              <option value="Fagus sylvatica purpurea">Fagus sylvatica purpurea — Hêtre pourpre</option>
+              <option value="Fagus sylvatica pendula">Fagus sylvatica pendula — Hêtre pleureur</option>
+            </optgroup>
+            <optgroup label="Charme">
+              <option value="Carpinus betulus">Carpinus betulus — Charme commun</option>
+              <option value="Carpinus betulus fastigiata">Carpinus betulus fastigiata — Charme fastigié</option>
+            </optgroup>
+            <optgroup label="Érable">
+              <option value="Acer platanoides">Acer platanoides — Érable plane</option>
+              <option value="Acer pseudoplatanus">Acer pseudoplatanus — Sycomore</option>
+              <option value="Acer campestre">Acer campestre — Érable champêtre</option>
+              <option value="Acer saccharinum">Acer saccharinum — Érable argenté</option>
+              <option value="Acer negundo">Acer negundo — Érable negundo</option>
+              <option value="Acer rubrum">Acer rubrum — Érable rouge</option>
+            </optgroup>
+            <optgroup label="Frêne">
+              <option value="Fraxinus excelsior">Fraxinus excelsior — Frêne commun</option>
+              <option value="Fraxinus angustifolia">Fraxinus angustifolia — Frêne à feuilles étroites</option>
+              <option value="Fraxinus ornus">Fraxinus ornus — Frêne à fleurs</option>
+              <option value="Fraxinus pennsylvanica">Fraxinus pennsylvanica — Frêne vert</option>
+            </optgroup>
+            <optgroup label="Tilleul">
+              <option value="Tilia cordata">Tilia cordata — Tilleul à petites feuilles</option>
+              <option value="Tilia platyphyllos">Tilia platyphyllos — Tilleul à grandes feuilles</option>
+              <option value="Tilia tomentosa">Tilia tomentosa — Tilleul argenté</option>
+              <option value="Tilia x europaea">Tilia × europaea — Tilleul commun (hybride)</option>
+            </optgroup>
+            <optgroup label="Orme">
+              <option value="Ulmus minor">Ulmus minor — Orme champêtre</option>
+              <option value="Ulmus glabra">Ulmus glabra — Orme de montagne</option>
+              <option value="Ulmus pumila">Ulmus pumila — Orme de Sibérie</option>
+            </optgroup>
+            <optgroup label="Platane">
+              <option value="Platanus acerifolia">Platanus × acerifolia — Platane commun</option>
+              <option value="Platanus orientalis">Platanus orientalis — Platane d'Orient</option>
+              <option value="Platanus occidentalis">Platanus occidentalis — Platane d'Occident</option>
+            </optgroup>
+            <optgroup label="Peuplier">
+              <option value="Populus tremula">Populus tremula — Tremble</option>
+              <option value="Populus nigra">Populus nigra — Peuplier noir</option>
+              <option value="Populus alba">Populus alba — Peuplier blanc</option>
+              <option value="Populus x canadensis">Populus × canadensis — Peuplier du Canada</option>
+              <option value="Populus nigra italica">Populus nigra italica — Peuplier Lombardie</option>
+            </optgroup>
+            <optgroup label="Bouleau">
+              <option value="Betula pendula">Betula pendula — Bouleau verruqueux</option>
+              <option value="Betula pubescens">Betula pubescens — Bouleau pubescent</option>
+            </optgroup>
+            <optgroup label="Aulne">
+              <option value="Alnus glutinosa">Alnus glutinosa — Aulne glutineux</option>
+              <option value="Alnus incana">Alnus incana — Aulne blanc</option>
+            </optgroup>
+            <optgroup label="Marronnier">
+              <option value="Aesculus hippocastanum">Aesculus hippocastanum — Marronnier commun</option>
+              <option value="Aesculus x carnea">Aesculus × carnea — Marronnier rouge</option>
+              <option value="Aesculus pavia">Aesculus pavia — Pavier rouge</option>
+            </optgroup>
+            <optgroup label="Châtaignier">
+              <option value="Castanea sativa">Castanea sativa — Châtaignier commun</option>
+            </optgroup>
+            <optgroup label="Noyer">
+              <option value="Juglans regia">Juglans regia — Noyer commun</option>
+              <option value="Juglans nigra">Juglans nigra — Noyer noir</option>
+            </optgroup>
+            <optgroup label="Cerisier">
+              <option value="Prunus avium">Prunus avium — Merisier</option>
+              <option value="Prunus serrulata">Prunus serrulata — Cerisier du Japon</option>
+              <option value="Prunus padus">Prunus padus — Cerisier à grappes</option>
+            </optgroup>
+            <optgroup label="Pommier">
+              <option value="Malus sylvestris">Malus sylvestris — Pommier sauvage</option>
+              <option value="Malus domestica">Malus domestica — Pommier cultivé</option>
+            </optgroup>
+            <optgroup label="Poirier">
+              <option value="Pyrus communis">Pyrus communis — Poirier commun</option>
+              <option value="Pyrus pyraster">Pyrus pyraster — Poirier sauvage</option>
+            </optgroup>
+            <optgroup label="Pin sylvestre">
+              <option value="Pinus sylvestris">Pinus sylvestris — Pin sylvestre</option>
+              <option value="Pinus sylvestris pendula">Pinus sylvestris pendula — Pin sylvestre pleureur</option>
+            </optgroup>
+            <optgroup label="Pin maritime">
+              <option value="Pinus pinaster">Pinus pinaster — Pin maritime</option>
+              <option value="Pinus pinea">Pinus pinea — Pin parasol</option>
+              <option value="Pinus nigra">Pinus nigra — Pin noir d'Autriche</option>
+              <option value="Pinus strobus">Pinus strobus — Pin de Weymouth</option>
+            </optgroup>
+            <optgroup label="Épicéa">
+              <option value="Picea abies">Picea abies — Épicéa commun</option>
+              <option value="Picea pungens">Picea pungens — Épicéa du Colorado</option>
+              <option value="Picea omorika">Picea omorika — Épicéa de Serbie</option>
+            </optgroup>
+            <optgroup label="Sapin blanc">
+              <option value="Abies alba">Abies alba — Sapin blanc</option>
+              <option value="Abies nordmanniana">Abies nordmanniana — Sapin de Nordmann</option>
+              <option value="Abies concolor">Abies concolor — Sapin du Colorado</option>
+            </optgroup>
+            <optgroup label="Douglas">
+              <option value="Pseudotsuga menziesii">Pseudotsuga menziesii — Douglas vert</option>
+            </optgroup>
+            <optgroup label="Mélèze">
+              <option value="Larix decidua">Larix decidua — Mélèze d'Europe</option>
+              <option value="Larix kaempferi">Larix kaempferi — Mélèze du Japon</option>
+            </optgroup>
+            <optgroup label="Cèdre">
+              <option value="Cedrus atlantica">Cedrus atlantica — Cèdre de l'Atlas</option>
+              <option value="Cedrus libani">Cedrus libani — Cèdre du Liban</option>
+              <option value="Cedrus deodara">Cedrus deodara — Cèdre de l'Himalaya</option>
+            </optgroup>
+            <optgroup label="Cyprès">
+              <option value="Cupressus sempervirens">Cupressus sempervirens — Cyprès commun</option>
+              <option value="Cupressus arizonica">Cupressus arizonica — Cyprès de l'Arizona</option>
+              <option value="Chamaecyparis lawsoniana">Chamaecyparis lawsoniana — Cyprès de Lawson</option>
+            </optgroup>
+            <optgroup label="Autres espèces">
+              <option value="Robinia pseudoacacia">Robinia pseudoacacia — Robinier faux-acacia</option>
+              <option value="Sophora japonica">Styphnolobium japonicum — Sophora du Japon</option>
+              <option value="Ailanthus altissima">Ailanthus altissima — Ailante glanduleux</option>
+              <option value="Liriodendron tulipifera">Liriodendron tulipifera — Tulipier de Virginie</option>
+              <option value="Liquidambar styraciflua">Liquidambar styraciflua — Copalme d'Amérique</option>
+              <option value="Ginkgo biloba">Ginkgo biloba — Arbre aux quarante écus</option>
+              <option value="Taxus baccata">Taxus baccata — If commun</option>
+              <option value="Thuja plicata">Thuja plicata — Thuya géant</option>
+              <option value="Sequoiadendron giganteum">Sequoiadendron giganteum — Séquoia géant</option>
+            </optgroup>
+            <option value="__autre__">✏ Autre — saisir manuellement…</option>
+          </select>
+          <div class="variete-libre-row" id="field-variete-libre-row" style="display:none">
+            <span class="variete-libre-label">Espèce :</span>
+            <input type="text" class="variete-libre-input" id="field-variete-libre"
+              placeholder="ex. Quercus robur var. fastigiata…" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label for="field-hauteur">Hauteur (m)</label>
+            <input type="number" id="field-hauteur" placeholder="~15" min="0" step="0.5" />
+          </div>
+          <div>
+            <label for="field-etat">État sanitaire</label>
+            <select id="field-etat">
+              <option value="">—</option>
+              <option>Bon</option>
+              <option>Moyen</option>
+              <option>Mauvais</option>
+              <option>Mort</option>
+            </select>
+          </div>
+        </div>
+
+        <label for="field-notes">Observations</label>
+        <textarea id="field-notes" placeholder="Champignons, cavités, écorce…"></textarea>
+
+        <div id="accuracy-info" class="accuracy-badge" style="display:none;">
+          <div class="accuracy-dot"></div>
+          <span id="accuracy-text">Précision GPS : —</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-secondary" id="btn-clear">↺ Vider</button>
+        <button class="btn btn-primary" id="btn-save">💾 Enregistrer</button>
+        <button class="btn btn-next" id="btn-save-next" title="Enregistrer et passer au point suivant">💾 ➜</button>
+      </div>
+    </div>
+
+    <!-- LIST TAB -->
+    <div class="tab-content" id="tab-list">
+      <div class="list-header">
+        <span class="section-title" style="margin:0;border:none;padding:0">Points enregistrés</span>
+        <span class="list-count" id="list-count">0 point(s)</span>
+      </div>
+      <div class="list-scroll" id="tree-list">
+        <div class="empty-list">
+          <span>🌱</span>
+          Aucun arbre inventorié.<br>
+          Localisez-vous et placez vos premiers points.
+        </div>
+      </div>
+      <div class="list-footer">
+        <div class="footer-btn-row">
+          <button class="btn btn-export footer-half-btn" id="btn-export" title="Exporter au BET">
+            <span class="footer-btn-icon">⬇</span>
+            <span class="footer-btn-label">Exporter<br><small>BET</small></span>
+          </button>
+          <label class="btn btn-import footer-half-btn" for="btn-import-file" title="Importer un CSV">
+            <span class="footer-btn-icon">⬆</span>
+            <span class="footer-btn-label">Importer<br><small>CSV</small></span>
+          </label>
+          <input type="file" id="btn-import-file" accept=".csv,text/csv" style="display:none">
+        </div>
+        <div class="import-status" id="import-status"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PORTRAIT WARNING -->
+<div id="portrait-warning">
+  <div class="orient-card">
+    <!-- Logo animé -->
+    <div class="orient-logo-anim">🌳</div>
+
+    <!-- Texte de bienvenue -->
+    <div class="orient-welcome-title">
+      Bienvenue sur l'application de gestion<br>de plantation d'arbre sur le terrain<br>du Bureau d'Études de la Ville<br>de Moissy-Cramayel
+    </div>
+    <div class="orient-divider"></div>
+    <div class="orient-copyright-main">© 2026 Bureau d'Études &mdash; M. Prévost</div>
+
+    <!-- Séparateur -->
+    <div class="orient-divider" style="margin-top:20px"></div>
+
+    <!-- Animation rotation portable -->
+    <div class="orient-rotate-wrapper">
+      <span class="orient-phone-anim">📱</span>
+    </div>
+    <div class="orient-title">Tournez votre appareil</div>
+    <div class="orient-sub">
+      L'application est conçue pour fonctionner<br>
+      en mode <strong>paysage</strong> sur mobile et tablette.<br>
+      Faites pivoter votre écran de 90°.
+    </div>
+
+    <button class="orient-force-btn" id="orient-force-btn">
+      Continuer quand même en portrait →
+    </button>
+  </div>
+</div>
+
+<!-- SHARE MODAL -->
+<div class="share-modal-backdrop" id="share-modal-backdrop">
+  <div class="share-modal">
+    <div class="share-modal-title">Partager l'inventaire</div>
+    <div class="share-modal-sub" id="share-modal-sub">— points enregistrés</div>
+    <div class="share-options">
+      <button class="share-opt" id="share-native">
+        <span class="share-opt-icon">📤</span>Partager…
+      </button>
+      <button class="share-opt" id="share-download">
+        <span class="share-opt-icon">⬇️</span>Télécharger CSV
+      </button>
+      <button class="share-opt" id="share-email">
+        <span class="share-opt-icon">📧</span>Email
+      </button>
+    </div>
+    <button class="share-cancel" id="share-cancel">Annuler</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ────────────────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────────────────
+let trees = JSON.parse(localStorage.getItem('sig_trees') || '[]');
+let pendingLatLng = null;
+let addingMode = false;
+let selectedId = null;
+let userMarker = null;
+let markers = {};
+
+// ────────────────────────────────────────────────────────────
+// MAP INIT
+// ────────────────────────────────────────────────────────────
+const map = L.map('map', {
+  center: [48.6167, 2.5833],
+  zoom: 14,
+  zoomControl: true
+});
+
+// ── Fond de carte OSM ──
+const layerOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright" style="color:#5a9a4a">OpenStreetMap</a>',
+  maxZoom: 19
+});
+
+// ── Fond de carte Google Satellite ──
+const layerIGN = L.tileLayer(
+  'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+  {
+    attribution: '© <a href="https://www.google.com/maps" style="color:#d4891a">Google</a> — Satellite',
+    maxZoom: 21,
+    tileSize: 256,
+    subdomains: ['mt0','mt1','mt2','mt3']
+  }
+);
+
+// Activer OSM par défaut
+layerOSM.addTo(map);
+let activeLayer = layerOSM;
+
+// ── Sélecteur de fond de carte ──
+document.querySelectorAll('.basemap-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const which = btn.dataset.layer;
+    if (which === 'osm' && activeLayer !== layerOSM) {
+      map.removeLayer(layerIGN);
+      layerOSM.addTo(map);
+      // S'assurer que les marqueurs restent au-dessus
+      Object.values(markers).forEach(m => m.bringToFront && m.bringToFront());
+      activeLayer = layerOSM;
+      showToast('🗺️ Fond de carte : OpenStreetMap');
+    } else if (which === 'ign' && activeLayer !== layerIGN) {
+      map.removeLayer(layerOSM);
+      layerIGN.addTo(map);
+      Object.values(markers).forEach(m => m.bringToFront && m.bringToFront());
+      activeLayer = layerIGN;
+      showToast('🛰️ Fond de carte : Google Satellite');
+    }
+    document.querySelectorAll('.basemap-btn').forEach(b => b.classList.toggle('active', b === btn));
+  });
+});
+
+// Utilitaire : éclaircit (+) ou assombrit (-) une couleur hex
+function shadeColor(hex, pct) {
+  const n = parseInt(hex.replace('#',''), 16);
+  const r = Math.min(255, Math.max(0, (n >> 16)         + Math.round(pct * 2.55)));
+  const g = Math.min(255, Math.max(0, ((n >> 8) & 0xff) + Math.round(pct * 2.55)));
+  const b = Math.min(255, Math.max(0, (n & 0xff)        + Math.round(pct * 2.55)));
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+// Génère le SVG d'arbre vu de dessus — style botanique avec nervures
+// inspiré d'une couronne dense vue en photo aérienne
+// palette : objet optionnel {base, light, mid, dark, shadow, vein, vein2}
+function makeTreeSVG(sz, uid, palette) {
+  // Palette par défaut (vert standard)
+  const p = palette || {};
+  const cBase   = p.base   || '#6ab842';
+  const cLight  = p.light  || '#8fd45a';
+  const cMid    = p.mid    || '#5aa535';
+  const cDark   = p.dark   || '#3d7a22';
+  const cShadow = p.shadow || '#2d5c18';
+  const cVein   = p.vein   || '#7a4520';
+  const cVein2  = p.vein2  || '#5c3318';
+  const cx = sz/2, cy = sz/2, r = sz/2 - 1;
+
+  // Nervures : tracés depuis le centre vers la périphérie
+  // nervure centrale + 6 nervures latérales (comme une feuille ronde vue de dessus)
+  const veins = [
+    // nervure centrale verticale
+    `M${cx},${cy} L${cx},${cy - r*0.85}`,
+    // nervures latérales principales
+    `M${cx},${cy} L${cx + r*0.75},${cy - r*0.45}`,
+    `M${cx},${cy} L${cx + r*0.82},${cy + r*0.28}`,
+    `M${cx},${cy} L${cx + r*0.45},${cy + r*0.78}`,
+    `M${cx},${cy} L${cx - r*0.45},${cy + r*0.78}`,
+    `M${cx},${cy} L${cx - r*0.82},${cy + r*0.28}`,
+    `M${cx},${cy} L${cx - r*0.75},${cy - r*0.45}`,
+    // nervures secondaires (plus courtes, depuis le milieu des principales)
+    `M${cx + r*0.25},${cy - r*0.35} L${cx + r*0.55},${cy - r*0.72}`,
+    `M${cx + r*0.32},${cy - r*0.20} L${cx + r*0.70},${cy - r*0.15}`,
+    `M${cx + r*0.30},${cy + r*0.20} L${cx + r*0.62},${cy + r*0.55}`,
+    `M${cx - r*0.25},${cy - r*0.35} L${cx - r*0.55},${cy - r*0.72}`,
+    `M${cx - r*0.32},${cy - r*0.20} L${cx - r*0.70},${cy - r*0.15}`,
+    `M${cx - r*0.30},${cy + r*0.20} L${cx - r*0.62},${cy + r*0.55}`,
+    `M${cx},${cy + r*0.25} L${cx + r*0.22},${cy + r*0.78}`,
+    `M${cx},${cy + r*0.25} L${cx - r*0.22},${cy + r*0.78}`,
+  ];
+
+  const vw = sz.toFixed(1);
+  return `<svg viewBox="0 0 ${vw} ${vw}" xmlns="http://www.w3.org/2000/svg" width="${vw}" height="${vw}">
+  <defs>
+    <!-- Dégradé radial principal — lumière zénithale légèrement décalée vers le haut-gauche -->
+    <radialGradient id="rg_${uid}" cx="38%" cy="34%" r="65%">
+      <stop offset="0%"   stop-color="${cLight}"/>
+      <stop offset="30%"  stop-color="${cBase}"/>
+      <stop offset="72%"  stop-color="${cMid}"/>
+      <stop offset="100%" stop-color="${cShadow}"/>
+    </radialGradient>
+    <!-- Dégradé radial secondaire pour texture de profondeur -->
+    <radialGradient id="rg2_${uid}" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="${cLight}" stop-opacity="0"/>
+      <stop offset="60%"  stop-color="${cDark}"  stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="${cShadow}"stop-opacity="0.55"/>
+    </radialGradient>
+    <clipPath id="cp_${uid}">
+      <circle cx="${cx}" cy="${cy}" r="${r}"/>
+    </clipPath>
+  </defs>
+
+  <!-- Ombre portée légère (décalée bas-droite) -->
+  <ellipse cx="${cx+1.2}" cy="${cy+2}" rx="${r*0.92}" ry="${r*0.82}" fill="#000" opacity=".22"/>
+
+  <!-- Fond de couronne avec dégradé botanique -->
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#rg_${uid})"/>
+
+  <!-- Zones de feuillage dense (taches sombres irrégulières) -->
+  <ellipse cx="${cx+r*0.3}"  cy="${cy+r*0.38}" rx="${r*0.28}" ry="${r*0.22}" fill="${cDark}"   opacity=".45" transform="rotate(25  ${cx+r*0.3}  ${cy+r*0.38})"/>
+  <ellipse cx="${cx-r*0.35}" cy="${cy+r*0.32}" rx="${r*0.25}" ry="${r*0.20}" fill="${cShadow}" opacity=".35" transform="rotate(-18 ${cx-r*0.35} ${cy+r*0.32})"/>
+  <ellipse cx="${cx+r*0.38}" cy="${cy-r*0.30}" rx="${r*0.22}" ry="${r*0.18}" fill="${cDark}"   opacity=".38" transform="rotate(40  ${cx+r*0.38} ${cy-r*0.30})"/>
+  <ellipse cx="${cx-r*0.28}" cy="${cy-r*0.40}" rx="${r*0.20}" ry="${r*0.16}" fill="${cDark}"   opacity=".32" transform="rotate(-30 ${cx-r*0.28} ${cy-r*0.40})"/>
+
+  <!-- Zones lumineuses (reflets soleil entre feuilles) -->
+  <ellipse cx="${cx-r*0.18}" cy="${cy-r*0.22}" rx="${r*0.20}" ry="${r*0.15}" fill="${cLight}"  opacity=".42" transform="rotate(-15 ${cx-r*0.18} ${cy-r*0.22})"/>
+  <ellipse cx="${cx+r*0.15}" cy="${cy-r*0.45}" rx="${r*0.16}" ry="${r*0.11}" fill="${cLight}"  opacity=".35" transform="rotate(10  ${cx+r*0.15} ${cy-r*0.45})"/>
+
+  <!-- Couche de profondeur radiale -->
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="url(#rg2_${uid})"/>
+
+  <!-- Nervures — clip pour rester dans le cercle -->
+  <g clip-path="url(#cp_${uid})">
+    <!-- Nervure centrale — plus épaisse et plus sombre -->
+    <path d="M${cx},${cy} L${cx},${cy - r*0.85}" stroke="${cVein2}" stroke-width="${sz*0.045}" stroke-linecap="round" opacity=".80" fill="none"/>
+    <!-- Nervures principales -->
+    ${[
+      `M${cx},${cy} L${cx + r*0.75},${cy - r*0.45}`,
+      `M${cx},${cy} L${cx + r*0.82},${cy + r*0.28}`,
+      `M${cx},${cy} L${cx + r*0.45},${cy + r*0.78}`,
+      `M${cx},${cy} L${cx - r*0.45},${cy + r*0.78}`,
+      `M${cx},${cy} L${cx - r*0.82},${cy + r*0.28}`,
+      `M${cx},${cy} L${cx - r*0.75},${cy - r*0.45}`,
+    ].map(d => `<path d="${d}" stroke="${cVein}" stroke-width="${sz*0.038}" stroke-linecap="round" opacity=".72" fill="none"/>`).join('\n    ')}
+    <!-- Nervures secondaires — plus fines -->
+    ${[
+      `M${cx + r*0.22},${cy - r*0.32} L${cx + r*0.52},${cy - r*0.70}`,
+      `M${cx + r*0.28},${cy - r*0.18} L${cx + r*0.68},${cy - r*0.12}`,
+      `M${cx + r*0.28},${cy + r*0.18} L${cx + r*0.60},${cy + r*0.52}`,
+      `M${cx - r*0.22},${cy - r*0.32} L${cx - r*0.52},${cy - r*0.70}`,
+      `M${cx - r*0.28},${cy - r*0.18} L${cx - r*0.68},${cy - r*0.12}`,
+      `M${cx - r*0.28},${cy + r*0.18} L${cx - r*0.60},${cy + r*0.52}`,
+      `M${cx + r*0.05},${cy + r*0.22} L${cx + r*0.20},${cy + r*0.80}`,
+      `M${cx - r*0.05},${cy + r*0.22} L${cx - r*0.20},${cy + r*0.80}`,
+    ].map(d => `<path d="${d}" stroke="${cVein}" stroke-width="${sz*0.022}" stroke-linecap="round" opacity=".55" fill="none"/>`).join('\n    ')}
+  </g>
+
+  <!-- Petit point central sombre (nœud) -->
+  <circle cx="${cx}" cy="${cy}" r="${sz*0.055}" fill="${cVein2}" opacity=".75"/>
+
+  <!-- Contour périphérique blanc — lisibilité sur satellite -->
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#fff" stroke-width="${sz*0.045}" opacity=".60"/>
+  <!-- Contour vert sombre intérieur pour définition -->
+  <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${cShadow}" stroke-width="${sz*0.025}" opacity=".50"/>
+</svg>`;
+}
+
+// ────────────────────────────────────────────────────────────
+// PALETTES DE COULEUR PAR ESPÈCE — symbologie arbre vu de dessus
+// ────────────────────────────────────────────────────────────
+const TREE_PALETTES = {
+  // ── Feuillus caducs ──
+  'Chêne':         { base:'#5a8a1a', light:'#78b030', mid:'#4a7a12', dark:'#306010', shadow:'#1e4008', vein:'#6b3a10', vein2:'#4a2808' },
+  'Hêtre':         { base:'#4a9a2a', light:'#68c040', mid:'#3a8820', dark:'#286018', shadow:'#1a4010', vein:'#6b4010', vein2:'#4a2c0a' },
+  'Charme':        { base:'#68a830', light:'#88cc48', mid:'#559020', dark:'#3a6a14', shadow:'#26480c', vein:'#7a5018', vein2:'#562e0c' },
+  'Érable':        { base:'#c47818', light:'#e09a30', mid:'#aa6010', dark:'#804808', shadow:'#5a3004', vein:'#6a3210', vein2:'#481e08' },
+  'Frêne':         { base:'#6aaa38', light:'#8acc50', mid:'#58922a', dark:'#3c6a1c', shadow:'#284810', vein:'#705a18', vein2:'#4e3a0c' },
+  'Tilleul':       { base:'#88c040', light:'#aad860', mid:'#72a832', dark:'#508020', shadow:'#365512', vein:'#7a6020', vein2:'#564010' },
+  'Orme':          { base:'#5a8a28', light:'#78b040', mid:'#48761c', dark:'#305810', shadow:'#1e3a08', vein:'#644818', vein2:'#442e0a' },
+  'Platane':       { base:'#7a9a28', light:'#9abb40', mid:'#68841c', dark:'#4a6012', shadow:'#30400a', vein:'#705518', vein2:'#4c3610' },
+  'Peuplier':      { base:'#3a8a5a', light:'#58a870', mid:'#2c7848', dark:'#1e5832', shadow:'#123820', vein:'#5a4820', vein2:'#3c2e12' },
+  'Bouleau':       { base:'#88b870', light:'#a8d888', mid:'#70a058', dark:'#507840', shadow:'#345228', vein:'#706040', vein2:'#4e4028' },
+  'Aulne':         { base:'#4a7848', light:'#68986a', mid:'#3c6638', dark:'#2a4c28', shadow:'#1a3018', vein:'#5c4820', vein2:'#3e2e12' },
+  'Marronnier':    { base:'#8a6828', light:'#a88840', mid:'#785618', dark:'#56400e', shadow:'#3a2a08', vein:'#6a3c14', vein2:'#48280a' },
+  'Châtaignier':   { base:'#9a7830', light:'#ba9848', mid:'#846220', dark:'#604810', shadow:'#402e08', vein:'#6a3c12', vein2:'#48280a' },
+  'Noyer':         { base:'#7a5a22', light:'#9a7838', mid:'#664a18', dark:'#4a3410', shadow:'#302008', vein:'#5c3010', vein2:'#3e1e08' },
+  'Cerisier':      { base:'#c05080', light:'#d870a0', mid:'#a83c68', dark:'#802850', shadow:'#581838', vein:'#7a2840', vein2:'#521828' },
+  'Pommier':       { base:'#c07030', light:'#e09050', mid:'#a85c20', dark:'#804414', shadow:'#582c0c', vein:'#7a3818', vein2:'#52220c' },
+  'Poirier':       { base:'#c09050', light:'#d8b068', mid:'#a87838', dark:'#7a5820', shadow:'#523810', vein:'#7a4820', vein2:'#522e12' },
+  // ── Résineux ──
+  'Pin sylvestre': { base:'#0a6a3a', light:'#188a52', mid:'#085a30', dark:'#044820', shadow:'#022e14', vein:'#4a3210', vein2:'#30200a' },
+  'Pin maritime':  { base:'#187848', light:'#289860', mid:'#0e6438', dark:'#084a28', shadow:'#043018', vein:'#4e3812', vein2:'#32220a' },
+  'Épicéa':        { base:'#065238', light:'#107048', mid:'#044428', shadow:'#021c10', dark:'#033020', vein:'#3a2c0e', vein2:'#261a08' },
+  'Sapin blanc':   { base:'#0a6a40', light:'#148858', mid:'#085630', dark:'#044020', shadow:'#022810', vein:'#4a3410', vein2:'#301e08' },
+  'Douglas':       { base:'#086040', light:'#127e52', mid:'#065030', dark:'#033a20', shadow:'#022412', vein:'#3e2e0e', vein2:'#281c08' },
+  'Mélèze':        { base:'#2a8058', light:'#3ca870', mid:'#1e6844', dark:'#125030', shadow:'#0a341e', vein:'#4a3818', vein2:'#302410' },
+  'Cèdre':         { base:'#0a5838', light:'#147848', mid:'#084828', shadow:'#021e10', dark:'#033018', vein:'#402e10', vein2:'#2a1e08' },
+  'Cyprès':        { base:'#1a6040', light:'#287e54', mid:'#125030', dark:'#083818', shadow:'#042010', vein:'#3e2e10', vein2:'#281e08' },
+};
+
+// Palette par défaut (vert neutre)
+const PALETTE_DEFAULT = { base:'#6ab842', light:'#8fd45a', mid:'#5aa535', dark:'#3d7a22', shadow:'#2d5c18', vein:'#7a4520', vein2:'#5c3318' };
+
+function getTreePalette(type) {
+  if (!type) return PALETTE_DEFAULT;
+  // Cherche une correspondance exacte ou partielle
+  for (const key of Object.keys(TREE_PALETTES)) {
+    if (type === key || type.startsWith(key) || key.startsWith(type.split(' ')[0])) {
+      return TREE_PALETTES[key];
+    }
+  }
+  return PALETTE_DEFAULT;
+}
+
+// Icône Leaflet — marqueur arbre sur la carte
+function makeIcon(type) {
+  const sz  = 38;
+  const uid = Math.random().toString(36).slice(2,7);
+  const pal = getTreePalette(type);
+  const svg = makeTreeSVG(sz, uid, pal);
+  return L.divIcon({
+    html: `<div style="width:${sz}px;height:${sz}px;filter:drop-shadow(0 1px 4px rgba(0,0,0,.50))">${svg}</div>`,
+    className: '',
+    iconSize:   [sz, sz],
+    iconAnchor: [sz/2, sz/2],
+    popupAnchor:[0, -sz/2 - 4]
+  });
+}
+
+function makeUserIcon() {
+  return L.divIcon({
+    html: `<div style="width:18px;height:18px;background:#5a9a4a;border-radius:50%;border:3px solid white;box-shadow:0 0 0 4px rgba(90,154,74,0.3)"></div>`,
+    className: '',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// MAP CLICK
+// ────────────────────────────────────────────────────────────
+// Marqueur rouge temporaire (en attente d'enregistrement)
+let pendingMarker = null;
+
+function removePendingMarker() {
+  if (pendingMarker) {
+    map.removeLayer(pendingMarker);
+    pendingMarker = null;
+  }
+}
+
+function makePendingMarker(latlng) {
+  removePendingMarker();
+  // Cercle rouge pulsant
+  pendingMarker = L.circleMarker(latlng, {
+    radius: 12,
+    color: '#cc2200',
+    fillColor: '#ff3311',
+    fillOpacity: 0.85,
+    weight: 3,
+    className: 'pending-marker-pulse'
+  }).addTo(map);
+  pendingMarker.bindTooltip('⏳ En attente d\'enregistrement', {
+    permanent: false, direction: 'top', className: 'pending-tooltip'
+  });
+}
+
+map.on('click', (e) => {
+  if (!addingMode) return;
+  pendingLatLng = e.latlng;
+  setCoordDisplay(e.latlng.lat, e.latlng.lng);
+  makePendingMarker(e.latlng);
+  showToast('📍 Point placé — remplissez le formulaire');
+  // Toujours basculer sur l'onglet formulaire
+  switchTab('form');
+  // Portrait : ouvrir/agrandir le panel automatiquement
+  if (isMobilePortrait()) {
+    if (panelCollapsed) {
+      togglePanel();
+    } else {
+      // S'assurer que le panel est visible (pas réduit à 0)
+      const panel = document.getElementById('side-panel');
+      if (!panel.classList.contains('expanded')) {
+        setPanelHeight(PANEL_DEFAULT_VH);
+      }
+    }
+  }
+});
+
+// ────────────────────────────────────────────────────────────
+// GEOLOCATION
+// ────────────────────────────────────────────────────────────
+let locateWatchId = null;
+let locating = false;
+
+function locateUser() {
+  if (!navigator.geolocation) {
+    showToast('⚠ Géolocalisation non supportée par ce navigateur', true);
+    return;
+  }
+
+  const btn = document.getElementById('btn-locate');
+
+  // Si déjà en cours, annuler
+  if (locating) {
+    if (locateWatchId !== null) {
+      navigator.geolocation.clearWatch(locateWatchId);
+      locateWatchId = null;
+    }
+    locating = false;
+    btn.textContent = '📍 Localiser';
+    btn.style.color = '';
+    btn.style.borderColor = '';
+    showToast('Localisation arrêtée');
+    return;
+  }
+
+  locating = true;
+  btn.textContent = '⏳ Localisation…';
+  btn.style.color = 'var(--amber)';
+  btn.style.borderColor = 'var(--amber)';
+  showToast('📍 Acquisition GPS en cours…');
+
+  const options = { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 };
+
+  locateWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+
+      // Centrer la carte sur la position
+      map.setView([lat, lng], Math.max(map.getZoom(), 17));
+
+      // Mettre à jour ou créer le marqueur utilisateur
+      if (userMarker) {
+        userMarker.setLatLng([lat, lng]);
+      } else {
+        userMarker = L.marker([lat, lng], { icon: makeUserIcon(), zIndexOffset: 1000 }).addTo(map);
+      }
+
+      // Remplir les coordonnées dans le formulaire
+      pendingLatLng = { lat, lng };
+      setCoordDisplay(lat, lng);
+
+      // Afficher la précision
+      const accEl = document.getElementById('accuracy-info');
+      const accTxt = document.getElementById('accuracy-text');
+      accEl.style.display = 'flex';
+      accTxt.textContent = `Précision GPS : ±${Math.round(accuracy)} m`;
+
+      btn.textContent = '📍 GPS actif';
+      btn.style.color = 'var(--leaf)';
+      btn.style.borderColor = 'var(--leaf)';
+
+      showToast(`📍 Position : ±${Math.round(accuracy)} m`);
+    },
+    (err) => {
+      locating = false;
+      if (locateWatchId !== null) {
+        navigator.geolocation.clearWatch(locateWatchId);
+        locateWatchId = null;
+      }
+      btn.textContent = '📍 Localiser';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+
+      let msg = '⚠ Localisation impossible';
+      if (err.code === 1) msg = '⚠ Permission GPS refusée — vérifiez les réglages';
+      else if (err.code === 2) msg = '⚠ Position indisponible';
+      else if (err.code === 3) msg = '⚠ Délai GPS dépassé — réessayez';
+      showToast(msg, true);
+    },
+    options
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// ADD MODE TOGGLE
+// ────────────────────────────────────────────────────────────
+document.getElementById('btn-add-mode').addEventListener('click', () => {
+  addingMode = !addingMode;
+  const btn = document.getElementById('btn-add-mode');
+  const banner = document.getElementById('add-banner');
+  const mapEl = document.getElementById('map');
+  if (addingMode) {
+    btn.classList.add('active');
+    banner.classList.add('visible');
+    mapEl.classList.add('adding-mode');
+    showToast('Mode ajout activé — cliquez sur la carte');
+  } else {
+    btn.classList.remove('active');
+    banner.classList.remove('visible');
+    mapEl.classList.remove('adding-mode');
+  }
+});
+
+// ────────────────────────────────────────────────────────────
+// SAVE — fonction commune
+// ────────────────────────────────────────────────────────────
+function doSave() {
+  if (!pendingLatLng) {
+    showToast('⚠ Aucune coordonnée — localisez-vous ou cliquez la carte', true);
+    return null;
+  }
+  const type   = document.getElementById('field-type').value;
+  const dateplant = buildDateStr();
+  const variete = getVarieteValue('field');
+  const hauteur= document.getElementById('field-hauteur').value;
+  const etat   = document.getElementById('field-etat').value;
+  const notes  = document.getElementById('field-notes').value.trim();
+
+  if (!type) {
+    showToast('⚠ Veuillez sélectionner un type d\'arbre', true);
+    return null;
+  }
+
+  const tree = {
+    id: Date.now(),
+    lat: pendingLatLng.lat,
+    lng: pendingLatLng.lng,
+    nom: type,
+    type, variete, hauteur, etat, notes,
+    dateplant,
+    date: new Date().toISOString()
+  };
+
+  trees.push(tree);
+  saveLocal();
+  addMarker(tree);
+  renderList();
+  updateStats();
+  return tree;
+}
+
+// Bouton : 💾 Enregistrer (reste sur le formulaire vide)
+document.getElementById('btn-save').addEventListener('click', () => {
+  const tree = doSave();
+  if (!tree) return;
+  removePendingMarker();
+  clearForm();
+  pendingLatLng = null;
+  map.setView([tree.lat, tree.lng], Math.max(map.getZoom(), 16));
+  showToast(`🌳 ${tree.nom} enregistré !`);
+  if (addingMode) document.getElementById('btn-add-mode').click();
+});
+
+// Bouton : 💾 ➜ Enregistrer & point suivant
+document.getElementById('btn-save-next').addEventListener('click', () => {
+  const tree = doSave();
+  if (!tree) return;
+  removePendingMarker();
+  const savedName = tree.nom;
+  clearForm();
+  pendingLatLng = null;
+  map.setView([tree.lat, tree.lng], Math.max(map.getZoom(), 16));
+  showToast(`🌳 ${savedName} enregistré — acquisition du point suivant…`);
+
+  // Réactiver le mode ajout si pas déjà actif
+  if (!addingMode) document.getElementById('btn-add-mode').click();
+
+  showToast('📍 Cliquez sur la carte pour placer le prochain point');
+});
+
+// ────────────────────────────────────────────────────────────
+// CLEAR FORM
+// ────────────────────────────────────────────────────────────
+document.getElementById('btn-clear').addEventListener('click', () => {
+  removePendingMarker();
+  clearForm();
+  pendingLatLng = null;
+  showToast('Formulaire vidé');
+});
+
+function clearForm() {
+  resetVariete('field');
+  ['field-hauteur','field-notes'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('field-type').value = '';
+  initDateSelects(null);
+  document.getElementById('field-etat').value = '';
+  setCoordDisplay(null, null);
+  document.getElementById('accuracy-info').style.display = 'none';
+}
+
+// ────────────────────────────────────────────────────────────
+// COORD DISPLAY
+// ────────────────────────────────────────────────────────────
+function setCoordDisplay(lat, lng) {
+  const dLat = document.getElementById('disp-lat');
+  const dLng = document.getElementById('disp-lng');
+  if (lat === null) {
+    dLat.textContent = '— —'; dLat.classList.add('empty');
+    dLng.textContent = '— —'; dLng.classList.add('empty');
+  } else {
+    dLat.textContent = lat.toFixed(6); dLat.classList.remove('empty');
+    dLng.textContent = lng.toFixed(6); dLng.classList.remove('empty');
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// MARKERS
+// ────────────────────────────────────────────────────────────
+function addMarker(tree) {
+  const icon = makeIcon(tree.type);
+  const m = L.marker([tree.lat, tree.lng], { icon })
+    .addTo(map)
+    .bindPopup(makePopupHTML(tree));
+  m.on('click', () => selectTree(tree.id));
+  markers[tree.id] = m;
+}
+
+function makePopupHTML(tree) {
+  return `<div class="popup-content">
+    <div class="popup-name">${esc(tree.nom)}</div>
+    ${tree.type ? `<div class="popup-row">Type <span>${esc(tree.type)}</span></div>` : ''}
+    ${tree.variete ? `<div class="popup-row">Variété <span><em>${esc(tree.variete)}</em></span></div>` : ''}
+    ${tree.hauteur ? `<div class="popup-row">Hauteur <span>${tree.hauteur} m</span></div>` : ''}
+    ${tree.etat ? `<div class="popup-row">État <span>${esc(tree.etat)}</span></div>` : ''}
+    <div class="popup-row">Lat <span>${tree.lat.toFixed(6)}</span></div>
+    <div class="popup-row">Lng <span>${tree.lng.toFixed(6)}</span></div>
+    <div class="popup-row" style="font-size:.58rem;color:#3d6b3d;margin-top:4px">${new Date(tree.date).toLocaleString('fr-FR')}</div>
+  </div>`;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ────────────────────────────────────────────────────────────
+// LIST RENDER
+// ────────────────────────────────────────────────────────────
+// Miniature SVG arbre vu de dessus pour les cartes de liste — colorée par espèce
+function makeTreeCardSVG(type) {
+  const pal = getTreePalette(type);
+  return makeTreeSVG(26, 'c' + Math.random().toString(36).slice(2,6), pal);
+}
+
+function renderList() {
+  const el = document.getElementById('tree-list');
+  document.getElementById('list-count').textContent = `${trees.length} point(s)`;
+  if (trees.length === 0) {
+    el.innerHTML = `<div class="empty-list"><span>🌱</span>Aucun arbre inventorié.<br>Localisez-vous et placez vos premiers points.</div>`;
+    return;
+  }
+  el.innerHTML = trees.map(t => `
+    <div class="tree-card ${selectedId===t.id?'selected':''}" onclick="selectTree(${t.id})">
+      <div class="tree-card-icon" style="background:transparent;display:flex;align-items:center;justify-content:center;width:30px;height:30px">${makeTreeCardSVG(t.type)}</div>
+      <div class="tree-card-info">
+        <div class="tree-card-name">${esc(t.nom)}</div>
+        <div class="tree-card-type">${esc(t.type)}${t.variete?' — '+esc(t.variete):''}</div>
+        <div class="tree-card-coords">${t.lat.toFixed(5)}, ${t.lng.toFixed(5)}</div>
+      </div>
+      <div class="tree-card-actions">
+        <button class="tree-card-edit" onclick="openEditModal(event,${t.id})" title="Modifier">✏️</button>
+        <button class="tree-card-del" onclick="deleteTree(event,${t.id})" title="Supprimer">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectTree(id) {
+  selectedId = id;
+  renderList();
+  const t = trees.find(x => x.id === id);
+  if (!t) return;
+
+  // Centrer la carte sur l'arbre
+  map.setView([t.lat, t.lng], Math.max(map.getZoom(), 17));
+
+  // Ouvrir le popup après que la carte a fini de se déplacer
+  // (évite que le popup soit ouvert pendant un pan et se ferme)
+  setTimeout(() => {
+    if (markers[id]) {
+      markers[id].openPopup();
+    }
+  }, 320);
+
+  // Sur mobile portrait : basculer sur la carte pour voir le marker
+  if (isMobilePortrait()) {
+    switchTab('list'); // rester sur liste mais réduire légèrement le panel
+  }
+}
+
+function deleteTree(e, id) {
+  e.stopPropagation();
+  const t = trees.find(x => x.id === id);
+  if (!t) return;
+  if (!confirm(`Supprimer « ${t.nom} » ?`)) return;
+  trees = trees.filter(x => x.id !== id);
+  if (markers[id]) { map.removeLayer(markers[id]); delete markers[id]; }
+  if (selectedId === id) selectedId = null;
+  saveLocal();
+  renderList();
+  updateStats();
+  showToast('Point supprimé');
+}
+
+
+// ── VARIETE COMBO ────────────────────────────────────────────
+function onVarieteSelect(prefix) {
+  const sel = document.getElementById(prefix + '-variete-select');
+  const row = document.getElementById(prefix + '-variete-libre-row');
+  const inp = document.getElementById(prefix + '-variete-libre');
+  if (!sel || !row) return;
+  if (sel.value === '__autre__') {
+    row.style.display = 'flex';
+    if (inp) { inp.disabled = false; inp.focus(); }
+  } else {
+    row.style.display = 'none';
+    if (inp) { inp.disabled = true; inp.value = ''; }
+  }
+}
+
+function getVarieteValue(prefix) {
+  const sel = document.getElementById(prefix + '-variete-select');
+  const inp = document.getElementById(prefix + '-variete-libre');
+  if (!sel) return '';
+  if (sel.value === '__autre__') return inp ? inp.value.trim() : '';
+  return sel.value; // valeur = nom latin pur (sans la partie française)
+}
+
+function setVarieteValue(prefix, val) {
+  const sel = document.getElementById(prefix + '-variete-select');
+  const row = document.getElementById(prefix + '-variete-libre-row');
+  const inp = document.getElementById(prefix + '-variete-libre');
+  if (!sel) return;
+  if (!val) { sel.value = ''; row.style.display = 'none'; return; }
+  // Chercher dans les options
+  let found = false;
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === val) { sel.value = val; found = true; break; }
+  }
+  if (!found) {
+    sel.value = '__autre__';
+    row.style.display = 'flex';
+    if (inp) { inp.disabled = false; inp.value = val; }
+  } else {
+    row.style.display = 'none';
+    if (inp) { inp.disabled = true; inp.value = ''; }
+  }
+}
+
+function resetVariete(prefix) {
+  const sel = document.getElementById(prefix + '-variete-select');
+  const row = document.getElementById(prefix + '-variete-libre-row');
+  const inp = document.getElementById(prefix + '-variete-libre');
+  if (sel) sel.value = '';
+  if (row) row.style.display = 'none';
+  if (inp) { inp.value = ''; inp.disabled = true; }
+}
+// ────────────────────────────────────────────────────────────
+// STATS
+// ────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('stat-total').textContent = trees.length;
+  const types = new Set(trees.map(t => t.type).filter(Boolean));
+  document.getElementById('stat-types').textContent = types.size;
+}
+
+// ────────────────────────────────────────────────────────────
+// CSV EXPORT
+// ────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────
+// CSV BUILDER
+// ────────────────────────────────────────────────────────────
+function buildCSV() {
+  const headers = ['id','type','variete','date_plantation','latitude','longitude','hauteur_m','etat_sanitaire','observations','date_saisie'];
+  const rows = trees.map(t => [
+    t.id,
+    `"${(t.type||'').replace(/"/g,'""')}"`,
+    `"${(t.variete||'').replace(/"/g,'""')}"`,
+    t.dateplant || '',
+    t.lat.toFixed(8),
+    t.lng.toFixed(8),
+    t.hauteur || '',
+    `"${(t.etat||'').replace(/"/g,'""')}"`,
+    `"${(t.notes||'').replace(/"/g,'""').replace(/\n/g,' ')}"`,
+    `"${new Date(t.date).toLocaleString('fr-FR')}"`
+  ]);
+  return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+}
+
+function buildCSVBlob() {
+  const bom = '\uFEFF';
+  return new Blob([bom + buildCSV()], { type: 'text/csv;charset=utf-8;' });
+}
+
+function buildTextSummary() {
+  return '🌳 Inventaire BET M. Prévost\n' +
+    `${trees.length} arbre(s) — ${new Date().toLocaleDateString('fr-FR')}\n\n` +
+    trees.map((t,i) => `${i+1}. ${t.nom} (${t.type})\n   📍 ${t.lat.toFixed(6)}, ${t.lng.toFixed(6)}`).join('\n');
+}
+
+// ────────────────────────────────────────────────────────────
+// EXPORT / SHARE MODAL
+// ────────────────────────────────────────────────────────────
+const shareBackdrop = document.getElementById('share-modal-backdrop');
+
+document.getElementById('btn-export').addEventListener('click', () => {
+  if (trees.length === 0) {
+    showToast('⚠ Aucun point à exporter', true);
+    return;
+  }
+  document.getElementById('share-modal-sub').textContent = `${trees.length} point(s) enregistré(s)`;
+  shareBackdrop.classList.add('open');
+});
+
+document.getElementById('share-cancel').addEventListener('click', () => {
+  shareBackdrop.classList.remove('open');
+});
+shareBackdrop.addEventListener('click', (e) => {
+  if (e.target === shareBackdrop) shareBackdrop.classList.remove('open');
+});
+
+// ── Télécharger CSV ─────────────────────────────────────────
+document.getElementById('share-download').addEventListener('click', () => {
+  const url = URL.createObjectURL(buildCSVBlob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `inventaire_BET_Prevost_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  shareBackdrop.classList.remove('open');
+  showToast(`⬇ ${trees.length} point(s) exporté(s) au BET`);
+});
+
+// ── Email ────────────────────────────────────────────────────
+document.getElementById('share-email').addEventListener('click', () => {
+  const subject = encodeURIComponent(`Inventaire BET M. Prévost — ${new Date().toLocaleDateString('fr-FR')}`);
+  const body = encodeURIComponent(buildTextSummary() + '\n\n(Fichier CSV joint disponible via export)');
+  window.open(`mailto:?subject=${subject}&body=${body}`);
+  shareBackdrop.classList.remove('open');
+});
+
+// ── Partage natif (Web Share API) ───────────────────────────
+document.getElementById('share-native').addEventListener('click', async () => {
+  if (navigator.share) {
+    try {
+      const blob = buildCSVBlob();
+      const file = new File([blob], `inventaire_BET_Prevost_${new Date().toISOString().slice(0,10)}.csv`, { type: 'text/csv' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'Inventaire BET M. Prévost', files: [file] });
+      } else {
+        await navigator.share({ title: 'Inventaire BET M. Prévost', text: buildTextSummary() });
+      }
+      shareBackdrop.classList.remove('open');
+    } catch(e) {
+      if (e.name !== 'AbortError') showToast('Partage annulé ou non supporté', true);
+    }
+  } else {
+    showToast('Partage natif non disponible sur ce navigateur', true);
+  }
+});
+
+
+
+
+
+// ────────────────────────────────────────────────────────────
+// PANEL TOGGLE + BOTTOM SHEET (mobile portrait)
+// ────────────────────────────────────────────────────────────
+let panelCollapsed = false;
+
+function isMobilePortrait() {
+  return window.innerWidth <= 600;
+}
+function isMobileLandscape() {
+  return window.innerHeight <= 500 && window.innerWidth > 500;
+}
+
+// Hauteur par défaut du panel en portrait
+const PANEL_DEFAULT_VH = 48;  // % de la viewport
+const PANEL_EXPANDED_VH = 82;
+
+function setPanelHeight(vh) {
+  document.documentElement.style.setProperty('--panel-h', vh + 'vh');
+
+}
+
+function togglePanel() {
+  panelCollapsed = !panelCollapsed;
+  const panel        = document.getElementById('side-panel');
+  const toggleBtn    = document.getElementById('panel-toggle-btn');
+  const openPanelBtn = document.getElementById('btn-open-panel');
+
+  if (panelCollapsed) {
+    panel.classList.add('collapsed');
+    panel.classList.remove('expanded');
+    toggleBtn.title = 'Agrandir le volet';
+    if (openPanelBtn) openPanelBtn.classList.remove('hidden');
+    if (isMobilePortrait()) setPanelHeight(0);
+  } else {
+    panel.classList.remove('collapsed');
+    toggleBtn.title = 'Réduire le volet';
+    if (openPanelBtn) openPanelBtn.classList.add('hidden');
+    if (isMobilePortrait()) setPanelHeight(PANEL_DEFAULT_VH);
+  }
+  updateToggleArrows();
+  setTimeout(() => map.invalidateSize(), 340);
+}
+
+function expandPanelFull() {
+  if (!isMobilePortrait()) return;
+  panelCollapsed = false;
+  const panel = document.getElementById('side-panel');
+  panel.classList.remove('collapsed');
+  panel.classList.add('expanded');
+  const openPanelBtn = document.getElementById('btn-open-panel');
+  if (openPanelBtn) openPanelBtn.classList.add('hidden');
+  setPanelHeight(PANEL_EXPANDED_VH);
+  updateToggleArrows();
+  setTimeout(() => map.invalidateSize(), 340);
+}
+
+function collapsePanelPartial() {
+  if (!isMobilePortrait()) return;
+  panelCollapsed = false;
+  const panel = document.getElementById('side-panel');
+  panel.classList.remove('collapsed', 'expanded');
+  const openPanelBtn = document.getElementById('btn-open-panel');
+  if (openPanelBtn) openPanelBtn.classList.add('hidden');
+  setPanelHeight(PANEL_DEFAULT_VH);
+  updateToggleArrows();
+  setTimeout(() => map.invalidateSize(), 340);
+}
+
+function updateToggleArrows() {
+  const btn = document.getElementById('panel-toggle-btn');
+  const arrow = btn.querySelector('.ptb-arrow');
+  const label = btn.querySelector('.ptb-label');
+  const portrait = isMobilePortrait();
+  if (panelCollapsed) {
+    arrow.textContent = portrait ? '▲' : '▶';
+    label.textContent = 'Agrandir';
+    btn.title         = 'Agrandir le volet';
+  } else {
+    arrow.textContent = portrait ? '▼' : '◀';
+    label.textContent = 'Réduire';
+    btn.title         = 'Réduire le volet';
+  }
+}
+
+document.getElementById('panel-toggle-btn').addEventListener('click', () => {
+  if (isMobilePortrait()) {
+    const panel = document.getElementById('side-panel');
+    if (panel.classList.contains('expanded')) {
+      // Expanded → Default
+      collapsePanelPartial();
+    } else if (panelCollapsed) {
+      // Collapsed → Default
+      togglePanel();
+    } else {
+      // Default → Collapsed
+      togglePanel();
+    }
+  } else {
+    togglePanel();
+  }
+});
+
+// ── Drag handle sur le panel (portrait mobile) ────────────
+(function() {
+  let dragStartY = 0;
+  let dragStartH = 0;
+  let isDragging = false;
+
+  function getPanel() { return document.getElementById('side-panel'); }
+
+  function onDragStart(e) {
+    if (!isMobilePortrait()) return;
+    const panel = getPanel();
+    // Only drag from the ::before handle area (top 18px of panel)
+    const panelTop = panel.getBoundingClientRect().top;
+    const touch = e.touches ? e.touches[0] : e;
+    if (touch.clientY - panelTop > 20) return;
+
+    isDragging = true;
+    dragStartY = touch.clientY;
+    dragStartH = panel.getBoundingClientRect().height;
+    e.preventDefault();
+  }
+
+  function onDragMove(e) {
+    if (!isDragging) return;
+    const touch = e.touches ? e.touches[0] : e;
+    const delta = dragStartY - touch.clientY;
+    const newH = Math.max(48, Math.min(window.innerHeight * 0.85, dragStartH + delta));
+    const vh = (newH / window.innerHeight) * 100;
+    document.documentElement.style.setProperty('--panel-h', vh + 'vh');
+    e.preventDefault();
+  }
+
+  function onDragEnd() {
+    if (!isDragging) return;
+    isDragging = false;
+    // Snap to nearest state
+    const panel = getPanel();
+    const h = panel.getBoundingClientRect().height;
+    const vh = (h / window.innerHeight) * 100;
+    const openPanelBtn = document.getElementById('btn-open-panel');
+    if (vh < 15) {
+      panelCollapsed = true;
+      panel.classList.add('collapsed');
+      panel.classList.remove('expanded');
+      if (openPanelBtn) openPanelBtn.classList.remove('hidden');
+      setPanelHeight(0);
+    } else if (vh > 65) {
+      panel.classList.remove('collapsed');
+      panel.classList.add('expanded');
+      if (openPanelBtn) openPanelBtn.classList.add('hidden');
+      panelCollapsed = false;
+      setPanelHeight(PANEL_EXPANDED_VH);
+    } else {
+      panel.classList.remove('collapsed', 'expanded');
+      if (openPanelBtn) openPanelBtn.classList.add('hidden');
+      panelCollapsed = false;
+      setPanelHeight(PANEL_DEFAULT_VH);
+    }
+    updateToggleArrows();
+    updateFabPosition();
+    setTimeout(() => map.invalidateSize(), 340);
+  }
+
+  const panel = document.getElementById('side-panel');
+  panel.addEventListener('touchstart', onDragStart, { passive: false });
+  panel.addEventListener('touchmove',  onDragMove,  { passive: false });
+  panel.addEventListener('touchend',   onDragEnd);
+})();
+
+// Auto-expand panel when form is active (user tapped on map)
+function autoExpandPanelForForm() {
+  if (isMobilePortrait() && panelCollapsed) {
+    togglePanel();
+  }
+}
+
+// Update on resize/orientation change
+window.addEventListener('resize', () => {
+  updateToggleArrows();
+  syncAddModeBtn();
+  updateFabPosition();
+  if (isMobilePortrait()) {
+    if (!panelCollapsed) setPanelHeight(PANEL_DEFAULT_VH);
+  }
+  if (!panelCollapsed) setTimeout(() => map.invalidateSize(), 150);
+});
+
+// Bouton Ajouter intégré dans le basemap-switcher — aucun déplacement JS nécessaire
+function isMobileAny() {
+  return window.innerWidth <= 600 || (window.innerHeight <= 500 && window.innerWidth <= 900);
+}
+function syncAddModeBtn() { /* noop — bouton fixe dans basemap-switcher */ }
+function updateFabPosition() { /* noop */ }
+
+// Init on load
+document.addEventListener('DOMContentLoaded', () => {
+  if (isMobilePortrait()) {
+    // Volet replié par défaut sur mobile portrait
+    panelCollapsed = true;
+    const panel = document.getElementById('side-panel');
+    panel.classList.add('collapsed');
+    setPanelHeight(0);
+    const openPanelBtn = document.getElementById('btn-open-panel');
+    if (openPanelBtn) openPanelBtn.classList.remove('hidden');
+  }
+  updateToggleArrows();
+  // Logo header — injection du SVG botanique
+  const logoEl = document.getElementById('logo-tree-icon');
+  if (logoEl) logoEl.innerHTML = makeTreeSVG(36, 'logo');
+});
+if (isMobilePortrait()) {
+  panelCollapsed = true;
+  const panel = document.getElementById('side-panel');
+  if (panel) {
+    panel.classList.add('collapsed');
+    setPanelHeight(0);
+    const openPanelBtn = document.getElementById('btn-open-panel');
+    if (openPanelBtn) openPanelBtn.classList.remove('hidden');
+  }
+}
+updateToggleArrows();
+
+// ────────────────────────────────────────────────────────────
+// TABS
+// ────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id===`tab-${name}`));
+}
+
+// ────────────────────────────────────────────────────────────
+// LOCAL STORAGE
+// ────────────────────────────────────────────────────────────
+function saveLocal() {
+  localStorage.setItem('sig_trees', JSON.stringify(trees));
+}
+
+// ────────────────────────────────────────────────────────────
+// TOAST
+// ────────────────────────────────────────────────────────────
+let toastTimeout;
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => { t.classList.remove('show'); }, 3200);
+}
+
+// ────────────────────────────────────────────────────────────
+// INIT — reload saved trees
+// ────────────────────────────────────────────────────────────
+// ──────────────────────────────
+// DATE HELPER
+// ──────────────────────────────
+// ── DATE HELPERS ──
+function pad(n) { return String(n).padStart(2,'0'); }
+
+function buildDateStr() {
+  const dd   = document.getElementById('field-date-dd').value;
+  const mm   = document.getElementById('field-date-mm').value;
+  const yyyy = document.getElementById('field-date-yyyy').value;
+  return `${dd}-${mm}-${yyyy}`;
+}
+
+function initDateSelects(dateStr) {
+  // dateStr: "DD-MM-YYYY" or null (use today)
+  const today = new Date();
+  let dd   = pad(today.getDate());
+  let mm   = pad(today.getMonth() + 1);
+  let yyyy = String(today.getFullYear());
+
+  if (dateStr && dateStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    [dd, mm, yyyy] = dateStr.split('-');
+  }
+
+  // Fill days
+  const ddSel = document.getElementById('field-date-dd');
+  if (ddSel.options.length === 0) {
+    for (let i = 1; i <= 31; i++) {
+      const o = document.createElement('option');
+      o.value = pad(i); o.textContent = pad(i);
+      ddSel.appendChild(o);
+    }
+  }
+  ddSel.value = dd;
+
+  // Set month
+  document.getElementById('field-date-mm').value = mm;
+
+  // Fill years (10 years back → 2 years forward)
+  const yyyySel = document.getElementById('field-date-yyyy');
+  if (yyyySel.options.length === 0) {
+    const curY = today.getFullYear();
+    for (let y = curY - 10; y <= curY + 2; y++) {
+      const o = document.createElement('option');
+      o.value = String(y); o.textContent = String(y);
+      yyyySel.appendChild(o);
+    }
+  }
+  yyyySel.value = yyyy;
+}
+
+initDateSelects(null); // initialise avec aujourd'hui
+
+trees.forEach(t => addMarker(t));
+renderList();
+updateStats();
+
+// ────────────────────────────────────────────────────────────
+// FULLSCREEN
+// ────────────────────────────────────────────────────────────
+const fsBtn = document.getElementById('btn-fullscreen');
+
+function updateFsBtn() {
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  fsBtn.textContent = isFs ? '✕ Quitter plein écran' : '⛶ Plein écran';
+  fsBtn.title = isFs ? 'Quitter le plein écran' : 'Activer le plein écran';
+}
+
+fsBtn.addEventListener('click', () => {
+  const el = document.documentElement;
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    (el.requestFullscreen || el.webkitRequestFullscreen).call(el)
+      .catch(() => showToast('Plein écran non autorisé par ce navigateur', true));
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }
+});
+
+document.addEventListener('fullscreenchange', updateFsBtn);
+document.addEventListener('webkitfullscreenchange', updateFsBtn);
+
+// Invalidate map size after layout changes
+setTimeout(() => map.invalidateSize(), 300);
+
+
+// ────────────────────────────────────────────────────────────
+// ORIENTATION LOCK (mobile / tablette)
+// ────────────────────────────────────────────────────────────
+const portraitWarning = document.getElementById('portrait-warning');
+let orientationForcedByUser = false;
+
+function isMobileOrTablet() {
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+      || (navigator.maxTouchPoints > 1 && window.screen.width < 1024);
+}
+
+function checkOrientation() {
+  // Portrait fully supported — no forced landscape
+  setTimeout(() => map.invalidateSize(), 300);
+}
+
+// Quand le plein écran change, invalider la carte
+document.addEventListener('fullscreenchange', () => {
+  checkOrientation();
+  updateFsLandscapeBtn();
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  checkOrientation();
+});
+
+// Écouter les changements d'orientation
+window.addEventListener('resize', checkOrientation);
+window.addEventListener('orientationchange', () => {
+  setTimeout(checkOrientation, 200);
+});
+
+// Bouton "Continuer quand même"
+document.getElementById('orient-force-btn').addEventListener('click', () => {
+  orientationForcedByUser = true;
+  portraitWarning.classList.remove('visible');
+  setTimeout(() => map.invalidateSize(), 200);
+});
+
+// Vérification initiale
+checkOrientation();
+
+// ────────────────────────────────────────────────────────────
+// GPS SPLASH SCREEN
+// ────────────────────────────────────────────────────────────
+function dismissSplash() {
+  document.getElementById('gps-splash').classList.add('hidden');
+  // Tenter le plein écran automatique au premier geste utilisateur
+  requestAutoFullscreen();
+}
+
+function dismissSplashNoFs() {
+  // Ferme juste le splash, SANS plein écran
+  fullscreenRequested = true; // verrouille pour empêcher tout déclenchement ultérieur
+  document.getElementById('gps-splash').classList.add('hidden');
+}
+
+function splashSetStatus(msg, spinning = false) {
+  document.getElementById('splash-status-text').textContent = msg;
+  document.getElementById('splash-spinner').classList.toggle('active', spinning);
+}
+
+// ────────────────────────────────────────────────────────────
+// AUTO FULLSCREEN
+// Les navigateurs mobiles exigent un geste utilisateur pour
+// déclencher requestFullscreen. On tente au dismiss du splash,
+// sinon on écoute le premier tap sur la page.
+// ────────────────────────────────────────────────────────────
+let fullscreenRequested = false;
+
+function requestAutoFullscreen() {
+  if (fullscreenRequested) return;
+  if (document.fullscreenElement || document.webkitFullscreenElement) return;
+  fullscreenRequested = true;
+
+  const el = document.documentElement;
+  const request = el.requestFullscreen
+    || el.webkitRequestFullscreen
+    || el.mozRequestFullScreen
+    || el.msRequestFullscreen;
+
+  if (request) {
+    request.call(el).then(() => {
+      updateFsBtn();
+    }).catch(() => {
+      // Navigateur a refusé (pas de geste, ou politique du navigateur)
+      // On retente au prochain tap
+      fullscreenRequested = false;
+      listenForFirstTap();
+    });
+  }
+}
+
+function listenForFirstTap() {
+  const handler = () => {
+    document.removeEventListener('touchstart', handler);
+    document.removeEventListener('click', handler);
+    requestAutoFullscreen();
+  };
+  document.addEventListener('touchstart', handler, { once: true });
+  document.addEventListener('click', handler, { once: true });
+}
+
+// GPS désactivé
+
+// Bouton principal : Lancer en plein écran
+document.getElementById('splash-launch').addEventListener('click', () => {
+  dismissSplash(); // déclenche requestAutoFullscreen() via le geste utilisateur
+});
+
+// ── Quitter l'application (mobile portrait) ─────────────────
+function quitApp() {
+  if (confirm('Quitter SIG Arbres ?\nVos données sont sauvegardées localement.')) {
+    // Tenter de fermer l'onglet, sinon rediriger vers page vide
+    try { window.close(); } catch(e) {}
+    // Fallback : remplacer par page blanche avec message
+    setTimeout(() => {
+      document.body.innerHTML = '<div style="background:#1a2e1a;color:#a8c897;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:1rem;text-align:center;padding:20px">Application fermée.<br><small style="opacity:.5;font-size:.7rem;margin-top:8px;display:block">Fermez cet onglet manuellement.</small></div>';
+    }, 100);
+  }
+}
+
+// ── Plein écran paysage mobile ───────────────────────────────
+function toggleFullscreenLandscape() {
+  const el = document.documentElement;
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) {
+      req.call(el).then(() => {
+        updateFsLandscapeBtn();
+      }).catch(() => showToast('Plein écran non autorisé', true));
+    }
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    if (exit) exit.call(document);
+  }
+}
+
+function updateFsLandscapeBtn() {
+  const btn = document.getElementById('btn-fs-landscape');
+  if (!btn) return;
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  btn.title = isFs ? 'Quitter le plein écran' : 'Plein écran';
+  // Mettre à jour l'emoji via pseudo-element n'est pas possible,
+  // on update directement le textContent en mode compact
+  btn.dataset.fs = isFs ? '1' : '0';
+}
+
+document.addEventListener('fullscreenchange', updateFsLandscapeBtn);
+document.addEventListener('webkitfullscreenchange', updateFsLandscapeBtn);
+
+document.getElementById('splash-skip').addEventListener('click', dismissSplashNoFs);
+document.getElementById('splash-retry-skip').addEventListener('click', dismissSplashNoFs);
+
+// Pas de fermeture automatique — l'utilisateur doit taper (nécessaire pour le fullscreen)
+
+// ────────────────────────────────────────────────────────────
+// JPEG EXPORT — A4 paysage avec html2canvas
+// ────────────────────────────────────────────────────────────
+let printLeafMap = null;
+
+const typeColors = {
+  'Chêne':'#4a7a1a','Hêtre':'#1a6a1a','Charme':'#5a9a3a','Érable':'#c4780a',
+  'Frêne':'#6aa040','Tilleul':'#90c050','Orme':'#4a7a2a','Platane':'#7a9a20',
+  'Peuplier':'#3a7a5a','Bouleau':'#80a870','Aulne':'#4a6a4a','Marronnier':'#7a5a1a',
+  'Châtaignier':'#906a2a','Noyer':'#6a4a1a','Cerisier':'#c04080','Pommier':'#c46830',
+  'Poirier':'#b89050','Pin sylvestre':'#0a5a3a','Pin maritime':'#1a6a4a',
+  'Épicéa':'#004a2a','Sapin blanc':'#0a6a3a','Douglas':'#005a3a',
+  'Mélèze':'#2a7a5a','Cèdre':'#0a4a2a','Cyprès':'#1a5a3a',
+  'Autre feuillu':'#6a8a4a','Autre résineux':'#2a5a3a','Inconnu':'#7a7a5a'
+};
+function getTypeColor(t) { return typeColors[t] || '#5a9a4a'; }
+
+function printMap() {
+  if (trees.length === 0) {
+    showToast('⚠ Aucun point à exporter', true);
+    return;
+  }
+
+  var overlay = document.getElementById('print-overlay');
+  overlay.classList.add('visible');
+
+  var now = new Date();
+  document.getElementById('jpeg-meta').textContent =
+    'BET M. Prévost  |  ' + trees.length + ' point(s)  |  ' + now.toLocaleDateString('fr-FR');
+  document.getElementById('jpeg-header-right').innerHTML =
+    'Ville de Moissy-Cramayel<br>' + now.toLocaleDateString('fr-FR');
+  document.getElementById('jpeg-footer-date').textContent =
+    'Généré le ' + now.toLocaleDateString('fr-FR') + ' à ' + now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('jpeg-action-status').textContent = '';
+
+  // Reset map container
+  if (printLeafMap) { printLeafMap.remove(); printLeafMap = null; }
+  var container = document.getElementById('print-map');
+  container.innerHTML = '';
+  delete container._leaflet_id;
+
+  setTimeout(function() {
+    printLeafMap = L.map('print-map', {
+      zoomControl: false,
+      attributionControl: true,
+      center: map.getCenter(),
+      zoom: map.getZoom()
+    });
+
+    if (activeLayer === layerIGN) {
+      L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        attribution: '© Google Satellite', maxZoom: 21,
+        subdomains: ['mt0','mt1','mt2','mt3']
+      }).addTo(printLeafMap);
+    } else {
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 19
+      }).addTo(printLeafMap);
+    }
+
+    trees.forEach(function(t) {
+      var pal = getTreePalette(t.type);
+      var uid = 'p' + Math.random().toString(36).slice(2,6);
+      var svgStr = makeTreeSVG(22, uid, pal);
+      var icon = L.divIcon({
+        html: '<div style="width:22px;height:22px;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))">' + svgStr + '</div>',
+        className:'', iconSize:[22,22], iconAnchor:[11,11]
+      });
+      L.marker([t.lat,t.lng],{icon:icon}).addTo(printLeafMap);
+    });
+
+    printLeafMap.whenReady(function() {
+      setTimeout(function() {
+        printLeafMap.invalidateSize();
+        updatePrintLegend();
+        printLeafMap.on('moveend zoomend', updatePrintLegend);
+      }, 500);
+    });
+  }, 150);
+}
+
+function updatePrintLegend() {
+  if (!printLeafMap) return;
+  var bounds = printLeafMap.getBounds();
+  var visible = trees.filter(function(t) { return bounds.contains(L.latLng(t.lat, t.lng)); });
+  var typeCounts = {};
+  visible.forEach(function(t) { typeCounts[t.type] = (typeCounts[t.type]||0)+1; });
+  var sorted = Object.entries(typeCounts).sort(function(a,b){ return b[1]-a[1]; });
+
+  var legendEl = document.getElementById('jpeg-legend-items');
+  if (sorted.length === 0) {
+    legendEl.innerHTML = '<div style="font-size:.6rem;color:#888;padding:6px 0">Aucun arbre visible.</div>';
+  } else {
+    legendEl.innerHTML = sorted.map(function(e) {
+      var pal = getTreePalette(e[0]);
+      var uid = 'l' + Math.random().toString(36).slice(2,6);
+      var svgStr = makeTreeSVG(16, uid, pal);
+      return '<div style="display:flex;align-items:center;gap:5px;padding:2px 0;font-size:.62rem;color:#1a2e1a">'
+        + '<div style="width:16px;height:16px;flex-shrink:0">' + svgStr + '</div>'
+        + '<span style="flex:1;line-height:1.2">' + e[0] + '</span>'
+        + '<span style="background:' + (pal.dark||'#3d7a22') + ';color:#fff;border-radius:8px;padding:1px 5px;font-size:.56rem;font-weight:500">' + e[1] + '</span>'
+        + '</div><div style="border-top:1px solid #d8cfa8;margin:1px 0"></div>';
+    }).join('');
+  }
+  var stats = document.getElementById('jpeg-legend-stats');
+  stats.innerHTML = '<strong>'+visible.length+'</strong> arbre(s) visible(s)<br>'
+    + Object.keys(typeCounts).length + ' espèce(s)<br>'
+    + (activeLayer===layerIGN ? 'Fond : Google Sat.' : 'Fond : OSM');
+}
+
+// ── Capture composite as JPEG then download or share ────────
+async function generateJpeg(action) {
+  var statusEl = document.getElementById('jpeg-action-status');
+  var spinner  = document.getElementById('print-spinner');
+
+  // Disable buttons during generation
+  document.querySelectorAll('.export-btn-dl, .export-btn-share').forEach(function(b){ b.disabled = true; b.style.opacity = '.5'; });
+
+  spinner.style.display = 'flex';
+  statusEl.textContent = '⏳ Génération de l\'image en cours…';
+
+  // Wait for tiles to fully render
+  await new Promise(function(r){ setTimeout(r, 1200); });
+
+  try {
+    var composite = document.getElementById('jpeg-composite');
+    var canvas = await html2canvas(composite, {
+      useCORS:         true,
+      allowTaint:      true,
+      scale:           2,
+      backgroundColor: '#ffffff',
+      logging:         false,
+      imageTimeout:    20000,
+      removeContainer: true
+    });
+
+    spinner.style.display = 'none';
+    document.querySelectorAll('.export-btn-dl, .export-btn-share').forEach(function(b){ b.disabled = false; b.style.opacity = '1'; });
+
+    var filename = 'SIG_Arbres_BET_Prevost_' + new Date().toISOString().slice(0,10) + '.jpg';
+
+    // Convert canvas → blob
+    canvas.toBlob(async function(blob) {
+      if (!blob) {
+        statusEl.textContent = '⚠ Erreur : impossible de générer l\'image';
+        return;
+      }
+
+      if (action === 'share') {
+        // ── PARTAGER ─────────────────────────────────────────
+        var file = new File([blob], filename, { type: 'image/jpeg' });
+        var canShareFile = navigator.share && navigator.canShare && navigator.canShare({ files: [file] });
+
+        if (canShareFile) {
+          try {
+            await navigator.share({
+              title: 'SIG Arbres — BET M. Prévost',
+              text:  'Inventaire de plantations — Ville de Moissy-Cramayel',
+              files: [file]
+            });
+            statusEl.textContent = '✅ Image partagée avec succès !';
+            // Auto-close overlay 2s after successful share
+            setTimeout(closePrintOverlay, 2000);
+          } catch(shareErr) {
+            if (shareErr.name === 'AbortError') {
+              // User cancelled share sheet — do nothing
+              statusEl.textContent = '';
+            } else {
+              // Share failed — fallback to download
+              downloadJpeg(blob, filename);
+              statusEl.textContent = '⬇ Partage indisponible — image téléchargée';
+            }
+          }
+        } else if (navigator.share) {
+          // Share API present but no file sharing — share link/text only + download file
+          downloadJpeg(blob, filename);
+          try {
+            await navigator.share({
+              title: 'SIG Arbres — BET M. Prévost',
+              text:  'Inventaire de plantations — Ville de Moissy-Cramayel'
+            });
+          } catch(e) {}
+          statusEl.textContent = '⬇ Image téléchargée (partage de fichier non supporté)';
+        } else {
+          // No Share API (desktop) — download directly
+          downloadJpeg(blob, filename);
+          statusEl.textContent = '⬇ Image téléchargée — ' + filename;
+        }
+
+      } else {
+        // ── TÉLÉCHARGER ──────────────────────────────────────
+        downloadJpeg(blob, filename);
+        statusEl.textContent = '✅ Image téléchargée — ' + filename;
+        // Auto-close overlay 2.5s after download
+        setTimeout(closePrintOverlay, 2500);
+      }
+
+    }, 'image/jpeg', 0.92);
+
+  } catch(err) {
+    spinner.style.display = 'none';
+    document.querySelectorAll('.export-btn-dl, .export-btn-share').forEach(function(b){ b.disabled = false; b.style.opacity = '1'; });
+    statusEl.textContent = '⚠ Erreur : ' + err.message;
+    showToast('⚠ Erreur export image : ' + err.message, true);
+  }
+}
+
+function downloadJpeg(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a   = document.createElement('a');
+  a.href  = url; a.download = filename; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
+
+function handleOverlayClick(e) {
+  // Only close if clicking the dark backdrop itself, not its children
+  if (e.target === document.getElementById('print-overlay')) {
+    closePrintOverlay();
+  }
+}
+
+function closePrintOverlay() {
+  document.getElementById('print-overlay').classList.remove('visible');
+  document.getElementById('jpeg-action-status').textContent = '';
+  document.getElementById('print-spinner').style.display = 'none';
+  if (printLeafMap) {
+    printLeafMap.off('moveend zoomend', updatePrintLegend);
+    printLeafMap.remove();
+    printLeafMap = null;
+  }
+  var container = document.getElementById('print-map');
+  container.innerHTML = '';
+  delete container._leaflet_id;
+}
+
+
+// ────────────────────────────────────────────────────────────
+// IMPORT CSV
+// ────────────────────────────────────────────────────────────
+document.getElementById('btn-import-file').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('import-status');
+  statusEl.className = 'import-status';
+  statusEl.textContent = '⏳ Lecture du fichier…';
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      let text = ev.target.result;
+      // Remove BOM if present
+      if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) throw new Error('Fichier vide ou sans données.');
+
+      // Parse header — flexible column mapping
+      const raw = lines[0].replace(/"/g,'').toLowerCase();
+      const headers = raw.split(',').map(h => h.trim());
+
+      function col(names) {
+        for (const n of names) {
+          const i = headers.indexOf(n);
+          if (i !== -1) return i;
+        }
+        return -1;
+      }
+
+      const iLat   = col(['latitude','lat']);
+      const iLng   = col(['longitude','lng','lon']);
+      const iType  = col(['type']);
+      const iVar   = col(['variete','variété','espece','espèce']);
+      const iDate  = col(['date_plantation','date plantation','dateplant']);
+      const iHaut  = col(['hauteur_m','hauteur']);
+      const iEtat  = col(['etat_sanitaire','etat','état']);
+      const iNotes = col(['observations','notes']);
+
+      if (iLat === -1 || iLng === -1) {
+        throw new Error('Colonnes latitude/longitude introuvables.');
+      }
+
+      function parseCSVLine(line) {
+        const result = [];
+        let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') { inQ = !inQ; }
+          else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+          else { cur += c; }
+        }
+        result.push(cur.trim());
+        return result;
+      }
+
+      let imported = 0, skipped = 0;
+      const newTrees = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        const lat = parseFloat(cols[iLat]);
+        const lng = parseFloat(cols[iLng]);
+
+        if (isNaN(lat) || isNaN(lng)) { skipped++; continue; }
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) { skipped++; continue; }
+
+        const type      = iType  !== -1 ? (cols[iType]  || '').replace(/^"|"$/g,'') : 'Inconnu';
+        const variete   = iVar   !== -1 ? (cols[iVar]   || '').replace(/^"|"$/g,'') : '';
+        const dateplant = iDate  !== -1 ? (cols[iDate]  || '').replace(/^"|"$/g,'') : '';
+        const hauteur   = iHaut  !== -1 ? (cols[iHaut]  || '') : '';
+        const etat      = iEtat  !== -1 ? (cols[iEtat]  || '').replace(/^"|"$/g,'') : '';
+        const notes     = iNotes !== -1 ? (cols[iNotes] || '').replace(/^"|"$/g,'') : '';
+
+        // Check for duplicates (same lat/lng already in trees)
+        const isDupe = trees.some(t =>
+          Math.abs(t.lat - lat) < 0.000001 && Math.abs(t.lng - lng) < 0.000001
+        );
+        if (isDupe) { skipped++; continue; }
+
+        const tree = {
+          id: Date.now() + i,
+          lat, lng,
+          nom: type,
+          type, variete, hauteur, etat, notes, dateplant,
+          date: new Date().toISOString()
+        };
+        newTrees.push(tree);
+        imported++;
+      }
+
+      if (imported === 0) {
+        throw new Error('Aucun point valide importé. ' + (skipped > 0 ? skipped + ' ligne(s) ignorée(s).' : ''));
+      }
+
+      // Add to state
+      newTrees.forEach(t => {
+        trees.push(t);
+        addMarker(t);
+      });
+      saveLocal();
+      renderList();
+      updateStats();
+
+      // Zoom to imported points
+      if (newTrees.length > 0) {
+        const bounds = newTrees.map(t => [t.lat, t.lng]);
+        if (bounds.length === 1) {
+          map.setView(bounds[0], 16);
+        } else {
+          map.fitBounds(bounds, { padding: [40, 40] });
+        }
+      }
+
+      statusEl.className = 'import-status';
+      statusEl.textContent = '✅ ' + imported + ' point(s) importé(s)' + (skipped > 0 ? ' · ' + skipped + ' ignoré(s)' : '');
+      showToast('✅ ' + imported + ' arbre(s) importé(s) depuis le CSV');
+
+    } catch(err) {
+      statusEl.className = 'import-status error';
+      statusEl.textContent = '⚠ ' + err.message;
+      showToast('⚠ Erreur import : ' + err.message, true);
+    }
+
+    // Reset input so same file can be re-imported
+    e.target.value = '';
+  };
+
+  reader.onerror = function() {
+    document.getElementById('import-status').className = 'import-status error';
+    document.getElementById('import-status').textContent = '⚠ Impossible de lire le fichier.';
+  };
+
+  reader.readAsText(file, 'UTF-8');
+});
+
+
+// ────────────────────────────────────────────────────────────
+// EDIT MODAL
+// ────────────────────────────────────────────────────────────
+let editingId = null;
+
+function initEditDateSelects() {
+  const ddSel = document.getElementById('edit-date-dd');
+  if (ddSel.options.length === 0) {
+    for (let i = 1; i <= 31; i++) {
+      const o = document.createElement('option');
+      o.value = pad(i); o.textContent = pad(i);
+      ddSel.appendChild(o);
+    }
+  }
+  const yyyySel = document.getElementById('edit-date-yyyy');
+  if (yyyySel.options.length === 0) {
+    const curY = new Date().getFullYear();
+    for (let y = curY - 10; y <= curY + 2; y++) {
+      const o = document.createElement('option');
+      o.value = String(y); o.textContent = String(y);
+      yyyySel.appendChild(o);
+    }
+  }
+}
+
+function openEditModal(e, id) {
+  e.stopPropagation();
+  const t = trees.find(x => x.id === id);
+  if (!t) return;
+  editingId = id;
+
+  // Populate coords (read-only display)
+  document.getElementById('edit-lat').textContent = t.lat.toFixed(6);
+  document.getElementById('edit-lng').textContent = t.lng.toFixed(6);
+
+  // Populate date selects
+  initEditDateSelects();
+  let dd = pad(new Date().getDate());
+  let mm = pad(new Date().getMonth() + 1);
+  let yyyy = String(new Date().getFullYear());
+  if (t.dateplant && t.dateplant.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    [dd, mm, yyyy] = t.dateplant.split('-');
+  }
+  document.getElementById('edit-date-dd').value = dd;
+  document.getElementById('edit-date-mm').value = mm;
+  document.getElementById('edit-date-yyyy').value = yyyy;
+
+  // Populate fields
+  document.getElementById('edit-type').value    = t.type    || '';
+  setVarieteValue('edit', t.variete || '');
+  document.getElementById('edit-hauteur').value = t.hauteur || '';
+  document.getElementById('edit-etat').value    = t.etat    || '';
+  document.getElementById('edit-notes').value   = t.notes   || '';
+
+  document.getElementById('edit-modal-backdrop').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal-backdrop').classList.add('hidden');
+  editingId = null;
+}
+
+function closeEditModalBackdrop(e) {
+  if (e.target === document.getElementById('edit-modal-backdrop')) closeEditModal();
+}
+
+function saveEditModal() {
+  const t = trees.find(x => x.id === editingId);
+  if (!t) return;
+
+  const type = document.getElementById('edit-type').value;
+  if (!type) { showToast('⚠ Veuillez sélectionner un type d\'arbre', true); return; }
+
+  const dd   = document.getElementById('edit-date-dd').value;
+  const mm   = document.getElementById('edit-date-mm').value;
+  const yyyy = document.getElementById('edit-date-yyyy').value;
+
+  t.type     = type;
+  t.nom      = type;
+  t.variete  = getVarieteValue('edit');
+  t.hauteur  = document.getElementById('edit-hauteur').value;
+  t.etat     = document.getElementById('edit-etat').value;
+  t.notes    = document.getElementById('edit-notes').value.trim();
+  t.dateplant = `${dd}-${mm}-${yyyy}`;
+
+  // Update marker popup
+  if (markers[t.id]) {
+    markers[t.id].setPopupContent(makePopupHTML(t));
+    markers[t.id].setIcon(makeIcon());
+  }
+
+  saveLocal();
+  renderList();
+  updateStats();
+  closeEditModal();
+  showToast(`✅ ${t.nom} mis à jour`);
+}
+
+</script>
+
+<!-- MODALE D'ÉDITION -->
+<div class="edit-modal-backdrop hidden" id="edit-modal-backdrop" onclick="closeEditModalBackdrop(event)">
+  <div class="edit-modal">
+    <div class="edit-modal-header">
+      <div class="edit-modal-title">✏️ Modifier l'arbre</div>
+      <button class="edit-modal-close" onclick="closeEditModal()" title="Fermer">✕</button>
+    </div>
+    <div class="edit-modal-body">
+      <!-- Coordonnées (lecture seule) -->
+      <div class="section-title">Coordonnées GPS</div>
+      <div class="edit-coord-row">
+        <div class="edit-coord-box">
+          <div class="edit-coord-label">Latitude</div>
+          <div class="edit-coord-value" id="edit-lat">—</div>
+        </div>
+        <div class="edit-coord-box">
+          <div class="edit-coord-label">Longitude</div>
+          <div class="edit-coord-value" id="edit-lng">—</div>
+        </div>
+      </div>
+
+      <!-- Date de plantation -->
+      <div class="section-title" style="margin-top:14px">Identification</div>
+      <label>Date de plantation</label>
+      <div class="date-row" style="margin-bottom:14px">
+        <select id="edit-date-dd" title="Jour"></select>
+        <select id="edit-date-mm" title="Mois">
+          <option value="01">Janvier</option>
+          <option value="02">Février</option>
+          <option value="03">Mars</option>
+          <option value="04">Avril</option>
+          <option value="05">Mai</option>
+          <option value="06">Juin</option>
+          <option value="07">Juillet</option>
+          <option value="08">Août</option>
+          <option value="09">Septembre</option>
+          <option value="10">Octobre</option>
+          <option value="11">Novembre</option>
+          <option value="12">Décembre</option>
+        </select>
+        <select id="edit-date-yyyy" title="Année"></select>
+      </div>
+
+      <label for="edit-type">Type d'arbre</label>
+      <select id="edit-type">
+        <option value="">— Sélectionner —</option>
+        <optgroup label="Feuillus">
+          <option>Chêne</option><option>Hêtre</option><option>Charme</option>
+          <option>Érable</option><option>Frêne</option><option>Tilleul</option>
+          <option>Orme</option><option>Platane</option><option>Peuplier</option>
+          <option>Bouleau</option><option>Aulne</option><option>Marronnier</option>
+          <option>Châtaignier</option><option>Noyer</option><option>Cerisier</option>
+          <option>Pommier</option><option>Poirier</option>
+        </optgroup>
+        <optgroup label="Résineux">
+          <option>Pin sylvestre</option><option>Pin maritime</option><option>Épicéa</option>
+          <option>Sapin blanc</option><option>Douglas</option><option>Mélèze</option>
+          <option>Cèdre</option><option>Cyprès</option>
+        </optgroup>
+        <optgroup label="Autre">
+          <option>Autre feuillu</option><option>Autre résineux</option><option>Inconnu</option>
+        </optgroup>
+      </select>
+
+      <label for="edit-variete-select">Variété / Espèce latine</label>
+      <div class="variete-combo">
+        <select id="edit-variete-select" onchange="onVarieteSelect('edit')">
+          <option value="">— Sélectionner une espèce —</option>
+            <optgroup label="Chêne">
+              <option value="Quercus robur">Quercus robur — Chêne pédonculé</option>
+              <option value="Quercus petraea">Quercus petraea — Chêne sessile</option>
+              <option value="Quercus pubescens">Quercus pubescens — Chêne pubescent</option>
+              <option value="Quercus ilex">Quercus ilex — Chêne vert</option>
+              <option value="Quercus cerris">Quercus cerris — Chêne chevelu</option>
+              <option value="Quercus palustris">Quercus palustris — Chêne des marais</option>
+              <option value="Quercus rubra">Quercus rubra — Chêne rouge d'Amérique</option>
+            </optgroup>
+            <optgroup label="Hêtre">
+              <option value="Fagus sylvatica">Fagus sylvatica — Hêtre commun</option>
+              <option value="Fagus sylvatica purpurea">Fagus sylvatica purpurea — Hêtre pourpre</option>
+              <option value="Fagus sylvatica pendula">Fagus sylvatica pendula — Hêtre pleureur</option>
+            </optgroup>
+            <optgroup label="Charme">
+              <option value="Carpinus betulus">Carpinus betulus — Charme commun</option>
+              <option value="Carpinus betulus fastigiata">Carpinus betulus fastigiata — Charme fastigié</option>
+            </optgroup>
+            <optgroup label="Érable">
+              <option value="Acer platanoides">Acer platanoides — Érable plane</option>
+              <option value="Acer pseudoplatanus">Acer pseudoplatanus — Sycomore</option>
+              <option value="Acer campestre">Acer campestre — Érable champêtre</option>
+              <option value="Acer saccharinum">Acer saccharinum — Érable argenté</option>
+              <option value="Acer negundo">Acer negundo — Érable negundo</option>
+              <option value="Acer rubrum">Acer rubrum — Érable rouge</option>
+            </optgroup>
+            <optgroup label="Frêne">
+              <option value="Fraxinus excelsior">Fraxinus excelsior — Frêne commun</option>
+              <option value="Fraxinus angustifolia">Fraxinus angustifolia — Frêne à feuilles étroites</option>
+              <option value="Fraxinus ornus">Fraxinus ornus — Frêne à fleurs</option>
+              <option value="Fraxinus pennsylvanica">Fraxinus pennsylvanica — Frêne vert</option>
+            </optgroup>
+            <optgroup label="Tilleul">
+              <option value="Tilia cordata">Tilia cordata — Tilleul à petites feuilles</option>
+              <option value="Tilia platyphyllos">Tilia platyphyllos — Tilleul à grandes feuilles</option>
+              <option value="Tilia tomentosa">Tilia tomentosa — Tilleul argenté</option>
+              <option value="Tilia x europaea">Tilia × europaea — Tilleul commun (hybride)</option>
+            </optgroup>
+            <optgroup label="Orme">
+              <option value="Ulmus minor">Ulmus minor — Orme champêtre</option>
+              <option value="Ulmus glabra">Ulmus glabra — Orme de montagne</option>
+              <option value="Ulmus pumila">Ulmus pumila — Orme de Sibérie</option>
+            </optgroup>
+            <optgroup label="Platane">
+              <option value="Platanus acerifolia">Platanus × acerifolia — Platane commun</option>
+              <option value="Platanus orientalis">Platanus orientalis — Platane d'Orient</option>
+              <option value="Platanus occidentalis">Platanus occidentalis — Platane d'Occident</option>
+            </optgroup>
+            <optgroup label="Peuplier">
+              <option value="Populus tremula">Populus tremula — Tremble</option>
+              <option value="Populus nigra">Populus nigra — Peuplier noir</option>
+              <option value="Populus alba">Populus alba — Peuplier blanc</option>
+              <option value="Populus x canadensis">Populus × canadensis — Peuplier du Canada</option>
+              <option value="Populus nigra italica">Populus nigra italica — Peuplier Lombardie</option>
+            </optgroup>
+            <optgroup label="Bouleau">
+              <option value="Betula pendula">Betula pendula — Bouleau verruqueux</option>
+              <option value="Betula pubescens">Betula pubescens — Bouleau pubescent</option>
+            </optgroup>
+            <optgroup label="Aulne">
+              <option value="Alnus glutinosa">Alnus glutinosa — Aulne glutineux</option>
+              <option value="Alnus incana">Alnus incana — Aulne blanc</option>
+            </optgroup>
+            <optgroup label="Marronnier">
+              <option value="Aesculus hippocastanum">Aesculus hippocastanum — Marronnier commun</option>
+              <option value="Aesculus x carnea">Aesculus × carnea — Marronnier rouge</option>
+              <option value="Aesculus pavia">Aesculus pavia — Pavier rouge</option>
+            </optgroup>
+            <optgroup label="Châtaignier">
+              <option value="Castanea sativa">Castanea sativa — Châtaignier commun</option>
+            </optgroup>
+            <optgroup label="Noyer">
+              <option value="Juglans regia">Juglans regia — Noyer commun</option>
+              <option value="Juglans nigra">Juglans nigra — Noyer noir</option>
+            </optgroup>
+            <optgroup label="Cerisier">
+              <option value="Prunus avium">Prunus avium — Merisier</option>
+              <option value="Prunus serrulata">Prunus serrulata — Cerisier du Japon</option>
+              <option value="Prunus padus">Prunus padus — Cerisier à grappes</option>
+            </optgroup>
+            <optgroup label="Pommier">
+              <option value="Malus sylvestris">Malus sylvestris — Pommier sauvage</option>
+              <option value="Malus domestica">Malus domestica — Pommier cultivé</option>
+            </optgroup>
+            <optgroup label="Poirier">
+              <option value="Pyrus communis">Pyrus communis — Poirier commun</option>
+              <option value="Pyrus pyraster">Pyrus pyraster — Poirier sauvage</option>
+            </optgroup>
+            <optgroup label="Pin sylvestre">
+              <option value="Pinus sylvestris">Pinus sylvestris — Pin sylvestre</option>
+              <option value="Pinus sylvestris pendula">Pinus sylvestris pendula — Pin sylvestre pleureur</option>
+            </optgroup>
+            <optgroup label="Pin maritime">
+              <option value="Pinus pinaster">Pinus pinaster — Pin maritime</option>
+              <option value="Pinus pinea">Pinus pinea — Pin parasol</option>
+              <option value="Pinus nigra">Pinus nigra — Pin noir d'Autriche</option>
+              <option value="Pinus strobus">Pinus strobus — Pin de Weymouth</option>
+            </optgroup>
+            <optgroup label="Épicéa">
+              <option value="Picea abies">Picea abies — Épicéa commun</option>
+              <option value="Picea pungens">Picea pungens — Épicéa du Colorado</option>
+              <option value="Picea omorika">Picea omorika — Épicéa de Serbie</option>
+            </optgroup>
+            <optgroup label="Sapin blanc">
+              <option value="Abies alba">Abies alba — Sapin blanc</option>
+              <option value="Abies nordmanniana">Abies nordmanniana — Sapin de Nordmann</option>
+              <option value="Abies concolor">Abies concolor — Sapin du Colorado</option>
+            </optgroup>
+            <optgroup label="Douglas">
+              <option value="Pseudotsuga menziesii">Pseudotsuga menziesii — Douglas vert</option>
+            </optgroup>
+            <optgroup label="Mélèze">
+              <option value="Larix decidua">Larix decidua — Mélèze d'Europe</option>
+              <option value="Larix kaempferi">Larix kaempferi — Mélèze du Japon</option>
+            </optgroup>
+            <optgroup label="Cèdre">
+              <option value="Cedrus atlantica">Cedrus atlantica — Cèdre de l'Atlas</option>
+              <option value="Cedrus libani">Cedrus libani — Cèdre du Liban</option>
+              <option value="Cedrus deodara">Cedrus deodara — Cèdre de l'Himalaya</option>
+            </optgroup>
+            <optgroup label="Cyprès">
+              <option value="Cupressus sempervirens">Cupressus sempervirens — Cyprès commun</option>
+              <option value="Cupressus arizonica">Cupressus arizonica — Cyprès de l'Arizona</option>
+              <option value="Chamaecyparis lawsoniana">Chamaecyparis lawsoniana — Cyprès de Lawson</option>
+            </optgroup>
+            <optgroup label="Autres espèces">
+              <option value="Robinia pseudoacacia">Robinia pseudoacacia — Robinier faux-acacia</option>
+              <option value="Sophora japonica">Styphnolobium japonicum — Sophora du Japon</option>
+              <option value="Ailanthus altissima">Ailanthus altissima — Ailante glanduleux</option>
+              <option value="Liriodendron tulipifera">Liriodendron tulipifera — Tulipier de Virginie</option>
+              <option value="Liquidambar styraciflua">Liquidambar styraciflua — Copalme d'Amérique</option>
+              <option value="Ginkgo biloba">Ginkgo biloba — Arbre aux quarante écus</option>
+              <option value="Taxus baccata">Taxus baccata — If commun</option>
+              <option value="Thuja plicata">Thuja plicata — Thuya géant</option>
+              <option value="Sequoiadendron giganteum">Sequoiadendron giganteum — Séquoia géant</option>
+            </optgroup>
+          <option value="__autre__">✏ Autre — saisir manuellement…</option>
+        </select>
+        <div class="variete-libre-row" id="edit-variete-libre-row" style="display:none">
+          <span class="variete-libre-label">Espèce :</span>
+          <input type="text" class="variete-libre-input" id="edit-variete-libre"
+            placeholder="ex. Quercus robur var. fastigiata…" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div>
+          <label for="edit-hauteur">Hauteur (m)</label>
+          <input type="number" id="edit-hauteur" placeholder="~15" min="0" step="0.5" />
+        </div>
+        <div>
+          <label for="edit-etat">État sanitaire</label>
+          <select id="edit-etat">
+            <option value="">—</option>
+            <option>Bon</option><option>Moyen</option><option>Mauvais</option><option>Mort</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="edit-notes">Observations</label>
+      <textarea id="edit-notes" placeholder="Champignons, cavités, écorce…"></textarea>
+    </div>
+    <div class="edit-modal-footer">
+      <button class="btn btn-danger" onclick="closeEditModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveEditModal()">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- JPEG EXPORT OVERLAY -->
+<div id="print-overlay" onclick="handleOverlayClick(event)">
+
+  <!-- Barre titre + fermer -->
+  <div class="export-topbar">
+    <div class="export-topbar-title">📷 Export image — A4 paysage</div>
+    <button class="export-topbar-close" onclick="closePrintOverlay()" title="Fermer">✕</button>
+  </div>
+
+  <!-- Aperçu A4 -->
+  <div id="print-preview-wrap">
+    <div id="jpeg-composite">
+
+      <!-- En-tête -->
+      <div style="background:#1a2e1a;color:#a8c897;padding:7px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;height:40px">
+        <div>
+          <div style="font-family:serif;font-size:.88rem;font-weight:bold;line-height:1">🌳 SIG Arbres — Inventaire des plantations</div>
+          <div id="jpeg-meta" style="font-size:.52rem;color:#5a9a4a;margin-top:2px;letter-spacing:.05em"></div>
+        </div>
+        <div id="jpeg-header-right" style="font-size:.52rem;color:#5a9a4a;text-align:right;line-height:1.7;letter-spacing:.04em"></div>
+      </div>
+
+      <!-- Corps carte + légende -->
+      <div style="flex:1;display:flex;overflow:hidden;min-height:0">
+        <div style="flex:1;position:relative;overflow:hidden">
+          <div id="print-map" style="width:100%;height:100%"></div>
+        </div>
+        <div id="jpeg-legend" style="width:168px;flex-shrink:0;background:#f5f0e8;border-left:3px solid #1a2e1a;padding:10px 9px;overflow:hidden;display:flex;flex-direction:column">
+          <div style="font-family:serif;font-size:.82rem;font-weight:bold;color:#1a2e1a;border-bottom:2px solid #1a2e1a;padding-bottom:4px;margin-bottom:6px">Légende</div>
+          <div id="jpeg-legend-items" style="flex:1;overflow:hidden"></div>
+          <div id="jpeg-legend-stats" style="font-size:.54rem;color:#3a5a3a;line-height:1.8;padding-top:6px;border-top:1px solid #c8bfa8;margin-top:4px"></div>
+        </div>
+      </div>
+
+      <!-- Pied de page -->
+      <div style="background:#1a2e1a;color:#5a9a4a;font-size:.48rem;padding:4px 14px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;height:20px;letter-spacing:.07em">
+        <span>© 2026 Bureau d'Études — M. Prévost</span>
+        <span id="jpeg-footer-date"></span>
+      </div>
+    </div>
+
+    <!-- Spinner -->
+    <div id="print-spinner">
+      <div style="width:34px;height:34px;border:3px solid #3d6b3d;border-top-color:#5a9a4a;border-radius:50%;animation:spin .7s linear infinite"></div>
+      Génération image…
+    </div>
+  </div>
+
+  <!-- Boutons d'action -->
+  <div class="export-actions">
+    <button class="export-btn-back" onclick="closePrintOverlay()">
+      <span class="ebtn-icon">✕</span>
+      <span class="ebtn-label">Retour</span>
+    </button>
+    <button class="export-btn-dl" onclick="generateJpeg('download')">
+      <span class="ebtn-icon">⬇</span>
+      <span class="ebtn-label">Télécharger<br>JPEG</span>
+    </button>
+    <button class="export-btn-share" onclick="generateJpeg('share')">
+      <span class="ebtn-icon">⬆</span>
+      <span class="ebtn-label">Partager l'image<br><small style="font-size:.46rem;font-weight:400;opacity:.8">WhatsApp · Mail · Drive…</small></span>
+    </button>
+  </div>
+  <div id="jpeg-action-status"></div>
+
+</div>
+
+</body>
+</html>
