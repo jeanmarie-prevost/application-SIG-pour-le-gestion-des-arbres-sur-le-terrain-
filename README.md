@@ -1,6 +1,6 @@
 # 🌳 SIG Arbres — Documentation technique
 
-> ** M. Jean-Marie Prévost**
+> **M. Jean-Marie Prévost**
 > Mars 2026 · Un seul fichier HTML · Sans serveur requis · Mobile & desktop
 
 ---
